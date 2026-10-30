@@ -1,6 +1,7 @@
 import "dotenv/config";
 import pg from "pg";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
+import { z } from "zod";
 import { hashPassword } from "../src/server/auth/security";
 import { securitySchema } from "../src/lib/config";
 import path from "node:path";
@@ -147,8 +148,64 @@ async function seed() {
     await c.end();
   }
 }
+export async function seedSecondAdministrator(username: string, email: string) {
+  if (process.env.NODE_ENV === "production")
+    throw new Error("Second-admin development seed refuses production");
+  const url = new URL(process.env.MIGRATION_DATABASE_URL!);
+  if (
+    !["localhost", "127.0.0.1"].includes(url.hostname) ||
+    !["/libetario", "/libetario_test"].includes(url.pathname)
+  )
+    throw new Error("Dedicated local database only");
+  username = z
+    .string()
+    .regex(/^[a-z0-9_.-]{3,40}$/)
+    .parse(username);
+  email = z.email().parse(email.toLowerCase());
+  const c = new pg.Client({ connectionString: url.toString() });
+  await c.connect();
+  try {
+    const owner = (
+      await c.query(
+        "SELECT current_user,pg_get_userbyid(relowner) owner FROM pg_class WHERE oid='public.users'::regclass",
+      )
+    ).rows[0];
+    if (owner.current_user !== owner.owner)
+      throw new Error("Migration authority required");
+    if (
+      !(await c.query("SELECT 1 FROM users WHERE role='ADMINISTRATOR' LIMIT 1"))
+        .rowCount
+    )
+      throw new Error("Seed the initial database first");
+    const password = "Ld-" + randomBytes(24).toString("hex");
+    await c.query("BEGIN");
+    const user = (
+      await c.query(
+        "INSERT INTO users(email,username,password_hash,role) VALUES($1,$2,$3,'ADMINISTRATOR') RETURNING id",
+        [email, username, await hashPassword(password)],
+      )
+    ).rows[0];
+    await c.query(
+      "SELECT private.write_audit('admin.second_admin_seeded',jsonb_build_object('user_id',$1::uuid,'source','LOCAL_SEED'))",
+      [user.id],
+    );
+    await c.query("COMMIT");
+    console.log(
+      "Second administrator created. Privately deliver this temporary password once; password change and authenticator enrollment are required.",
+    );
+    console.log(password);
+  } catch (e) {
+    await c.query("ROLLBACK");
+    throw e;
+  } finally {
+    await c.end();
+  }
+}
 if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-)
-  await seed();
+) {
+  if (process.argv[2] === "--second-admin")
+    await seedSecondAdministrator(process.argv[3] ?? "", process.argv[4] ?? "");
+  else await seed();
+}

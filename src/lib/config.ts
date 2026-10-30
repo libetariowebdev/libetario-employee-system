@@ -8,11 +8,49 @@ export const securitySchema = z
     windowMinutes: z.number().int().min(1).max(60).default(15),
     lockMinutes: z.number().int().min(1).max(60).default(15),
     resetMinutes: z.number().int().min(5).max(30).default(15),
+    pinEnabled: z.boolean().default(false),
+    adminTotpRequired: z.literal(true).default(true),
+    dutyTotpRequired: z.literal(true).default(true),
+    setupMinutes: z.number().int().min(1).max(5).default(5),
+    factorLimit: z.number().int().min(3).max(10).default(5),
+    factorNetworkLimit: z.number().int().min(5).max(100).default(30),
+    recoveryNetworkLimit: z.number().int().min(3).max(10).default(5),
+    sensitiveReauthMinutes: z.number().int().min(1).max(5).default(5),
+    dutyIdleMinutes: z.number().int().min(5).max(120).default(30),
+    dutyMaxHours: z.number().int().min(1).max(12).default(12),
   })
   .refine(
     (p) => p.idleMinutes <= p.absoluteMinutes,
     "Idle timeout exceeds absolute timeout",
   );
+// Policy calculation only in 2a. No DUTY session can be issued until 2b.
+export function dutySessionExpiry(
+  now: Date,
+  validUntil: Date,
+  policy: ReturnType<typeof securitySchema.parse>,
+) {
+  if (
+    !Number.isFinite(now.getTime()) ||
+    !Number.isFinite(validUntil.getTime()) ||
+    validUntil <= now
+  )
+    throw new Error("Duty window expired");
+  const absolute = new Date(
+    Math.min(
+      validUntil.getTime(),
+      now.getTime() + policy.dutyMaxHours * 3600000,
+    ),
+  );
+  return {
+    absolute,
+    idle: new Date(
+      Math.min(
+        absolute.getTime(),
+        now.getTime() + policy.dutyIdleMinutes * 60000,
+      ),
+    ),
+  };
+}
 export function environment() {
   const e = z
     .object({

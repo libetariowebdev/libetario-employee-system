@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -62,20 +63,29 @@ model company_settings {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model credential_resets {
-  id                                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id                                     String    @db.Uuid
-  requested_by                                String    @db.Uuid
-  kind                                        String    @default("PASSWORD")
-  verification_note                           String
-  token_hash                                  String    @unique
-  expires_at                                  DateTime  @db.Timestamptz(6)
-  consumed_at                                 DateTime? @db.Timestamptz(6)
-  created_at                                  DateTime  @default(now()) @db.Timestamptz(6)
-  users_credential_resets_requested_byTousers users     @relation("credential_resets_requested_byTousers", fields: [requested_by], references: [id], onUpdate: NoAction)
-  users_credential_resets_user_idTousers      users     @relation("credential_resets_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+  id                                                                              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                                                         String           @db.Uuid
+  requested_by                                                                    String?          @db.Uuid
+  kind                                                                            String           @default("PASSWORD")
+  verification_note                                                               String
+  token_hash                                                                      String           @unique
+  expires_at                                                                      DateTime         @db.Timestamptz(6)
+  consumed_at                                                                     DateTime?        @db.Timestamptz(6)
+  created_at                                                                      DateTime         @default(now()) @db.Timestamptz(6)
+  reason                                                                          String?
+  request_source                                                                  String           @default("ADMIN")
+  operator_reference                                                              String?
+  target_enrollment_id                                                            String?          @db.Uuid
+  users_credential_resets_requested_byTousers                                     users?           @relation("credential_resets_requested_byTousers", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users_credential_resets_user_idTousers                                          users            @relation("credential_resets_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+  mfa_enrollments_credential_resets_target_enrollment_id_user_idTomfa_enrollments mfa_enrollments? @relation("credential_resets_target_enrollment_id_user_idTomfa_enrollments", fields: [target_enrollment_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "resets_enrollment_owner")
+  mfa_enrollments_mfa_enrollments_reset_id_user_idTocredential_resets             mfa_enrollments[] @relation("mfa_enrollments_reset_id_user_idTocredential_resets")
+  sessions                                                                        sessions[]
 
+  @@unique([id, user_id], map: "resets_id_user_unique")
   @@index([requested_by])
   @@index([user_id])
+  @@index([target_enrollment_id])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -92,6 +102,7 @@ model employee_profiles {
   created_at                DateTime                    @default(now()) @db.Timestamptz(6)
   updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
   version                   Int                         @default(1)
+  employee_pins             employee_pins?
   users                     users                       @relation(fields: [user_id], references: [id], onUpdate: NoAction)
   employee_rate_history     employee_rate_history[]
   employee_schedule_history employee_schedule_history[]
@@ -175,6 +186,7 @@ model policy_versions {
   employee_rate_history                                                 employee_rate_history[]
   employee_schedule_history                                             employee_schedule_history[]
   users                                                                 users                       @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  sessions                                                              sessions[]
 
   @@unique([policy_key, revision])
   @@index([created_by])
@@ -194,24 +206,42 @@ model security_throttles {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model sessions {
-  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id               String        @db.Uuid
-  token_hash            String        @unique
-  csrf_token_hash       String
-  scope                 String        @default("ACCOUNT")
-  authorization_version Int
-  created_at            DateTime      @default(now()) @db.Timestamptz(6)
-  last_seen_at          DateTime      @default(now()) @db.Timestamptz(6)
-  idle_expires_at       DateTime      @db.Timestamptz(6)
-  absolute_expires_at   DateTime      @db.Timestamptz(6)
-  revoked_at            DateTime?     @db.Timestamptz(6)
-  revocation_reason     String?
-  audit_log             audit_log[]
-  auth_events           auth_events[]
-  users                 users         @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  id                                                                       String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                                                  String             @db.Uuid
+  token_hash                                                               String             @unique
+  csrf_token_hash                                                          String
+  scope                                                                    String             @default("ACCOUNT")
+  authorization_version                                                    Int
+  created_at                                                               DateTime           @default(now()) @db.Timestamptz(6)
+  last_seen_at                                                             DateTime           @default(now()) @db.Timestamptz(6)
+  idle_expires_at                                                          DateTime           @db.Timestamptz(6)
+  absolute_expires_at                                                      DateTime           @db.Timestamptz(6)
+  revoked_at                                                               DateTime?          @db.Timestamptz(6)
+  revocation_reason                                                        String?
+  setup_purpose                                                            String?
+  password_verified_at                                                     DateTime?          @db.Timestamptz(6)
+  mfa_enrollment_id                                                        String?            @db.Uuid
+  mfa_verified_at                                                          DateTime?          @db.Timestamptz(6)
+  setup_failures                                                           Int                @default(0)
+  security_policy_id                                                       String?            @db.Uuid
+  reset_id                                                                 String?            @db.Uuid
+  recovery_enrollment_id                                                   String?            @db.Uuid
+  audit_log                                                                audit_log[]
+  auth_events                                                              auth_events[]
+  mfa_enrollments_mfa_enrollments_enrollment_session_id_user_idTosessions  mfa_enrollments[]   @relation("mfa_enrollments_enrollment_session_id_user_idTosessions")
+  credential_resets                                                        credential_resets? @relation(fields: [reset_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "session_reset_owner")
+  mfa_enrollments_sessions_mfa_enrollment_id_user_idTomfa_enrollments      mfa_enrollments?   @relation("sessions_mfa_enrollment_id_user_idTomfa_enrollments", fields: [mfa_enrollment_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "sessions_mfa_owner")
+  mfa_enrollments_sessions_recovery_enrollment_id_user_idTomfa_enrollments mfa_enrollments?   @relation("sessions_recovery_enrollment_id_user_idTomfa_enrollments", fields: [recovery_enrollment_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "sessions_recovery_owner")
+  policy_versions                                                          policy_versions?   @relation(fields: [security_policy_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users                                                                    users              @relation(fields: [user_id], references: [id], onUpdate: NoAction)
 
+  @@unique([id, user_id], map: "sessions_id_user_unique")
   @@index([absolute_expires_at])
   @@index([user_id])
+  @@index([mfa_enrollment_id])
+  @@index([recovery_enrollment_id])
+  @@index([reset_id])
+  @@index([security_policy_id])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -235,8 +265,80 @@ model users {
   employee_profiles                                       employee_profiles?
   employee_rate_history                                   employee_rate_history[]
   employee_schedule_history                               employee_schedule_history[]
+  mfa_enrollments                                         mfa_enrollments[]
   policy_versions                                         policy_versions[]
   sessions                                                sessions[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model employee_pins {
+  user_id           String            @id @db.Uuid
+  pin_hash          String
+  changed_at        DateTime          @default(now()) @db.Timestamptz(6)
+  version           Int               @default(1)
+  employee_profiles employee_profiles @relation(fields: [user_id], references: [user_id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_enrollments {
+  id                                                                                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Partial uniqueness of the CURRENT enrollment is enforced by reviewed SQL.
+  // Do not mark all historical user_id values unique in Prisma relations.
+  user_id                                                                           String              @db.Uuid
+  generation                                                                        Int
+  state                                                                             String
+  ciphertext                                                                        Bytes?
+  nonce                                                                             Bytes?
+  tag                                                                               Bytes?
+  encryption_key_id                                                                 String?
+  encryption_format_version                                                         Int                 @default(1)
+  algorithm                                                                         String              @default("SHA1")
+  digits                                                                            Int                 @default(6)
+  period_seconds                                                                    Int                 @default(30)
+  enrollment_session_id                                                             String              @db.Uuid
+  reset_id                                                                          String?             @db.Uuid
+  recovered_from_id                                                                 String?             @db.Uuid
+  pending_expires_at                                                                DateTime?           @db.Timestamptz(6)
+  confirmed_at                                                                      DateTime?           @db.Timestamptz(6)
+  last_accepted_step                                                                BigInt?
+  recovery_batch_version                                                            Int                 @default(0)
+  revoked_at                                                                        DateTime?           @db.Timestamptz(6)
+  created_at                                                                        DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                                                                        DateTime            @default(now()) @db.Timestamptz(6)
+  version                                                                           Int                 @default(1)
+  credential_resets_credential_resets_target_enrollment_id_user_idTomfa_enrollments credential_resets[] @relation("credential_resets_target_enrollment_id_user_idTomfa_enrollments")
+  mfa_enrollments                                                                   mfa_enrollments?    @relation("mfa_enrollmentsTomfa_enrollments", fields: [recovered_from_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "enrollment_recovery_owner")
+  other_mfa_enrollments                                                             mfa_enrollments[]    @relation("mfa_enrollmentsTomfa_enrollments")
+  credential_resets_mfa_enrollments_reset_id_user_idTocredential_resets             credential_resets?  @relation("mfa_enrollments_reset_id_user_idTocredential_resets", fields: [reset_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "enrollment_reset_owner")
+  sessions_mfa_enrollments_enrollment_session_id_user_idTosessions                  sessions            @relation("mfa_enrollments_enrollment_session_id_user_idTosessions", fields: [enrollment_session_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "enrollment_session_owner")
+  users                                                                             users               @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  recovery_codes                                                                    recovery_codes[]
+  sessions_sessions_mfa_enrollment_id_user_idTomfa_enrollments                      sessions[]          @relation("sessions_mfa_enrollment_id_user_idTomfa_enrollments")
+  sessions_sessions_recovery_enrollment_id_user_idTomfa_enrollments                 sessions[]          @relation("sessions_recovery_enrollment_id_user_idTomfa_enrollments")
+
+  @@unique([id, user_id])
+  @@unique([user_id, generation])
+  @@unique([encryption_key_id, nonce], map: "mfa_nonce_unique", where: raw("(nonce IS NOT NULL)"))
+  @@index([enrollment_session_id])
+  @@index([recovered_from_id])
+  @@index([reset_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model recovery_codes {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  enrollment_id   String          @db.Uuid
+  batch_version   Int
+  code_hash       String
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  consumed_at     DateTime?       @db.Timestamptz(6)
+  revoked_at      DateTime?       @db.Timestamptz(6)
+  mfa_enrollments mfa_enrollments @relation(fields: [enrollment_id], references: [id], onUpdate: NoAction)
+
+  @@index([enrollment_id, batch_version])
 }
 
 enum EmploymentStatus {
