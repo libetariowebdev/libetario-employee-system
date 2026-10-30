@@ -4,7 +4,7 @@ import { mutation } from "./forms";
 import type { securitySchema } from "@/lib/config";
 import type { z } from "zod";
 type Security = z.infer<typeof securitySchema>;
-const labels: Record<keyof Security, string> = {
+const labels: Partial<Record<keyof Security, string>> = {
   idleMinutes: "Idle session lifetime (minutes)",
   absoluteMinutes: "Absolute session lifetime (minutes)",
   accountLimit: "Account failure threshold",
@@ -12,13 +12,22 @@ const labels: Record<keyof Security, string> = {
   windowMinutes: "Attempt window (minutes)",
   lockMinutes: "Lockout duration (minutes)",
   resetMinutes: "Reset-token lifetime (minutes)",
+  factorLimit: "Factor failure threshold",
+  factorNetworkLimit: "Factor network threshold",
+  recoveryNetworkLimit: "Recovery network threshold",
+  setupMinutes: "Setup lifetime (minutes)",
+  sensitiveReauthMinutes: "Sensitive action MFA age (minutes)",
+  dutyIdleMinutes: "Future duty idle timeout (2b)",
+  dutyMaxHours: "Future duty maximum hours (2b)",
 };
 export function SettingsEditor({
   csrf,
   configuration,
+  policyId,
 }: {
   csrf: string;
   configuration: Security;
+  policyId: string;
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -31,12 +40,16 @@ export function SettingsEditor({
         setBusy(true);
         const d = Object.fromEntries(new FormData(e.currentTarget));
         const config = Object.fromEntries(
-          Object.keys(configuration).map((k) => [k, Number(d[k])]),
+          Object.keys(labels).map((k) => [k, Number(d[k])]),
         );
         try {
           await mutation(
             "admin/settings/security",
-            { configuration: config, reason: d.reason },
+            {
+              expectedPolicyId: policyId,
+              configuration: { ...config, pinEnabled: d.pinEnabled === "on" },
+              reason: d.reason,
+            },
             csrf,
           );
           window.location.reload();
@@ -67,12 +80,25 @@ export function SettingsEditor({
               max={
                 k === "absoluteMinutes" ? 480 : k === "networkLimit" ? 100 : 60
               }
-              defaultValue={configuration[k]}
+              defaultValue={String(configuration[k])}
               required
             />
           </label>
         ))}
       </div>
+      <label className="checkbox-label">
+        <input
+          name="pinEnabled"
+          type="checkbox"
+          defaultChecked={configuration.pinEnabled}
+        />
+        Require employee PIN for duty (enforcement arrives in 2b)
+      </label>
+      <p className="small muted">
+        Administrator TOTP is always required. If a save requires recent MFA,
+        verify a fresh code on the <a href="/mfa/security">security page</a>,
+        then return.
+      </p>
       <label>
         Reason for policy change
         <textarea name="reason" minLength={10} maxLength={500} required />

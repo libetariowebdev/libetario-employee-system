@@ -62,6 +62,10 @@ export function Shell({
               My profile & rates
             </Link>
           )}
+          <Link href={admin ? "/admin/security" : "/mfa/security"}>
+            <ShieldCheck size={18} />
+            Account security
+          </Link>
           <p className="nav-label later-label">COMING IN LATER PHASES</p>
           <span className="nav-disabled">
             <ShieldCheck size={18} />
@@ -82,9 +86,9 @@ export function Shell({
         </nav>
         <div className="sidebar-bottom">
           <div className="phase-label">
-            <span>FOUNDATION</span>
+            <span>ACCOUNT SECURITY</span>
             <span>
-              PHASE 01 <ArrowUpRight size={12} />
+              PHASE 2A <ArrowUpRight size={12} />
             </span>
           </div>
           <p>

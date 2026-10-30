@@ -2,7 +2,7 @@ import { AuthForm, Logout } from "@/components/forms";
 import { pageSession } from "@/server/page-session";
 export const dynamic = "force-dynamic";
 export default async function Change() {
-  const s = await pageSession(false, true);
+  const s = await pageSession(false, true, true);
   return (
     <main className="simple-auth">
       <span className="text-brand">libetario ↗</span>

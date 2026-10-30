@@ -26,7 +26,7 @@ export default function Login() {
         </div>
         <div className="auth-footer">
           <ShieldCheck size={17} /> Private team workspace{" "}
-          <span>01 / FOUNDATION</span>
+          <span>2A / ACCOUNT SECURITY</span>
         </div>
       </section>
       <section className="auth-panel">
@@ -37,6 +37,10 @@ export default function Login() {
           <h2>Welcome back.</h2>
           <p className="muted">Sign in with your Libetario account.</p>
           <AuthForm mode="login" />
+          <a className="small reset-link" href="/mfa/recovery">
+            Lost your authenticator?
+          </a>
+          <br />
           <a className="small reset-link" href="/reset-password">
             Need help with your password?
           </a>
@@ -44,7 +48,7 @@ export default function Login() {
             <ShieldCheck size={18} />
             <p>
               Account access only. Duty authorization and secure duty sign-in
-              will be available in the next phase.
+              will be available in checkpoint 2b.
             </p>
           </div>
         </div>

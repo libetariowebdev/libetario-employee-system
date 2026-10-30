@@ -25,6 +25,7 @@ export default async function Settings() {
       <div className="settings-grid">
         <SettingsEditor
           csrf={s.csrf}
+          policyId={security.id}
           configuration={securitySchema.parse(security.configuration)}
         />
         <div className="form-stack">
