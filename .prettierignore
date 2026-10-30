@@ -1,0 +1,5 @@
+node_modules/
+.next/
+.local/
+src/generated/
+pnpm-lock.yaml

@@ -63,6 +63,9 @@ importers:
       embedded-postgres:
         specifier: 18.4.0-beta.17
         version: 18.4.0-beta.17
+      prettier:
+        specifier: ^3.9.10
+        version: 3.9.10
       prisma:
         specifier: 7.10.1
         version: 7.10.1(@types/node@24.19.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3)
@@ -1382,6 +1385,11 @@ packages:
     resolution: {integrity: sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw==}
     engines: {node: '>=12'}
 
+  prettier@3.9.10:
+    resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
+    engines: {node: '>=14'}
+    hasBin: true
+
   prisma@7.10.1:
     resolution: {integrity: sha512-GoVeErHGGtsSjsflQ1r2BA3RKTXtxNraQJz8OLkLhoLr7OgCscdx4qw4WMM4HnERYc+a1cq2VnMNbep+vOjNcQ==}
     engines: {node: ^20.19 || ^22.12 || >=24.0}
@@ -2659,6 +2667,8 @@ snapshots:
       xtend: 4.0.2
 
   postgres@3.4.7: {}
+
+  prettier@3.9.10: {}
 
   prisma@7.10.1(@types/node@24.19.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3):
     dependencies:
