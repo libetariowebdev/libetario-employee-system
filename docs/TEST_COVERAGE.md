@@ -1,33 +1,42 @@
-# Acceptance coverage through Phase 2a
+# Acceptance coverage through checkpoint 2b
 
-Real PostgreSQL, non-owner/NOBYPASSRLS runtime queries and a real Next.js HTTP server are used. No SQLite or mocked authorization substitutes for these checks. Phase 1 remains accepted. Phase 2a is the approved MFA checkpoint only; **no complete Section 15 duty scenario is claimed passed yet**.
+All 55 accepted checks remain, with the schema boundary updated from fifteen to seventeen tables. New tests use real PostgreSQL, actual non-owner/NOBYPASSRLS connections and a real Next.js HTTP server. Authorization is not mocked. Clock tests replace private.security_now() only through its migration owner in the dedicated local libetario_test database and restore it in finally; no request/environment clock override exists.
 
-| Blueprint scenario | Passed evidence | Remaining gate/status |
+| Blueprint scenario | Current evidence and status | Deferred portion |
 | --- | --- | --- |
-| Section 14 Phase 1 staff isolation | App/DAL/direct runtime-role A→B and B→A profile/rate denial, guessed UUID URLs, own records and administrator reads, SSR/client payload isolation | **PASSED**, retained regression coverage |
-| 15.1 activated A / inactive B duty login and tools | ACCOUNT/SETUP cannot call absent duty endpoints | **DEFERRED 2b**: grants, challenge stages and actual duty login/tools |
-| 15.2 wrong password/PIN/TOTP, lockout, recovery/reset | Password canonical-account/network locks; hashed PIN setup and independent lockout; RFC TOTP, drift, replay/concurrent use, persistent locks; bound/expired/replayed SETUP; hashed single-use/concurrent recovery; old-factor/session revocation; new-generation confirmation; assisted reset note/reason/recent different-admin checks; token expiry/single use; operator reset safeguards/audit; actual HTTP admin MFA and recovery transitions | **2a component matrix PASSED; scenario remains PARTIAL** until 2b tests optional PIN and TOTP through actual duty challenges/login, duty reauthentication and duty-scope restrictions |
-| 15.3 active duty revocation retains time | Account disabling/MFA reset/recovery immediately revoke next-request access; profiles/rates/audit retained | **DEFERRED 2b** for duty authorization_version invalidation; Phase 4 for recorded attendance/task-time preservation |
-| 15.4 shared assignments/contributions | No task table/API exists | **DEFERRED Phase 3** |
-| 15.5 pause/resume, multiple dates, non-overlap | Time/cutoff helpers and rate/schedule exclusion constraints pass | **DEFERRED Phase 4** for actual segments/timers |
-| 15.6 Clock Out with running timer | Configurable proposed close policy documented | **DEFERRED Phase 4** |
-| 15.7 attendance/task separation | Login and MFA create no attendance/pay data | **DEFERRED Phase 4** for actual attendance/task comparisons |
-| 15.8 daily/hourly pay and frozen final history | Exact individual Decimal rates, effective history, old values and overlap constraints pass | **DEFERRED Phase 5** for payroll/snapshot reconciliation |
-| 15.9 punch correction/draft recalculation/approved adjustment | Profile/rate/schedule edits carry mandatory reasons and append-only audits | **DEFERRED Phases 4/5** for actual time/payroll corrections |
-| 15.10 own finalized PDF / guessed URL denial | No public/static payslip route exists | **DEFERRED Phase 5**, actual protected PDFs required |
-| 15.11 Approved vs Paid | No payroll/payment transitions exist | **DEFERRED Phase 5** |
-| 15.12 overnight/cutoffs/rollover/missing punches/failed MFA/uploads/mobile | Exact money/rounding, Asia/Manila midnight and weekly cutoffs pass. Failed MFA and expiry pass; mobile recovery form reviewed at 390px with no horizontal overflow. DUTY policy utility has separate 30-minute idle/12-hour ceiling bounded by valid_until; ACCOUNT remains 15/60. | **PARTIAL**: same-grant TOTP(+PIN) reauth without password and actual overnight grant/session behavior in 2b; punches/time rollover Phase 4, malformed protected uploads Phase 3, further regression Phase 6 |
+| Section 14 Phase 1 staff isolation | **PASSED**, retained A↔B app/DAL/runtime SQL and actual HTTP/SSR regression. Employees retain own rate history. | None for the accepted foundation |
+| 15.1 activated A, inactive B | **Phase 2 security portion PASSED**: admin activates A, B has no grant; A completes staged login and reaches real shared duty guard/page; B and ACCOUNT-only cookies are denied. Runtime duty guard returns only own exact authorization. | Actual clock-in is Phase 4 |
+| 15.2 password/PIN/TOTP failures, lockout, recovery/reset | **PASSED in full for Phase 2**: password login/canonical account/network locks; PIN off/on/missing/wrong/reordered stages; PIN lockout across new challenges and expiry; independent TOTP network limit; global replay across purposes and concurrent independent challenges; expired/consumed/replaced/foreign binding rejection; recovery code single use/concurrency/regeneration; new-factor confirmation before privileged scope; audited assisted reset/note/reason/recent MFA, reset token expiry/once; old credentials/sessions invalidated; operator/last-admin and key protection regressions. | No duty factor/recovery/reset case is deferred |
+| 15.3 revoke during active session | **Phase 2 security portion PASSED**: committed revoke denies next real HTTP request and direct runtime guard query; deterministic races cover revoke-first and issuance-first; regrant cannot revive tokens; counts/history retained and prior first-authentication metadata kept in audit. | Actual recorded attendance/task-time preservation is Phase 4; those tables do not exist yet |
+| 15.4 shared task/contribution separation | **DEFERRED Phase 3** | No project/task tables/endpoints exist |
+| 15.5 pause/resume/multiple dates/no overlaps | Rate/schedule exclusion constraints and time/cutoff helpers pass | **DEFERRED Phase 4** for real segments/timers |
+| 15.6 Clock Out with running timer | Policy assumption documented | **DEFERRED Phase 4** |
+| 15.7 attendance/task separation | Authentication creates no attendance/pay rows | **DEFERRED Phase 4** for actual totals |
+| 15.8 distinct daily/hourly pay/frozen final history | Exact per-employee rates, effective history and unchanged old values pass | **DEFERRED Phase 5** for payroll/snapshot reconciliation |
+| 15.9 punch corrections/draft recalc/approved adjustments | Existing profile/rate/schedule reason/audit checks pass | **DEFERRED Phases 4/5** for time/payroll workflows |
+| 15.10 own finalized PDF / guessed URLs | No public payslip endpoint exists | **DEFERRED Phase 5**, actual protected PDFs required |
+| 15.11 approval/payment separation | No payroll/payment transitions exist | **DEFERRED Phase 5** |
+| 15.12 overnight/cutoffs/rollover/missing punches/MFA/uploads/mobile | **Phase 2 overnight/access portion PASSED**: default-off and carry ceiling, before/after Manila midnight, original grant/date retained, explicit window end, non-overnight midnight denial, idle/absolute expiry, same-grant TOTP(+PIN) reauth without password, no next-date activation/new backdated regrant start. Existing money/time/cutoff/failed-MFA checks pass. Mobile staged duty screen reviewed at 390px with document width 375px. | Protected uploads Phase 3; actual punches/shift/time rollover Phase 4; full release/browser regression Phase 6 |
 
-## Test inventory
+## Executed test inventory
 
-- `tests/checkpoint/rls.test.ts`: 5 original profile/rate runtime-role isolation checks.
-- `tests/integration/foundation.test.ts`: 18 account, profile, policy, CSRF, audit and schema-boundary checks, updated to fifteen tables/admin MFA fixtures.
-- `tests/unit/money-time.test.ts`: 4 exact-money, timezone/cutoff and password-policy checks.
-- `tests/unit/mfa.test.ts`: 6 RFC vectors, drift/replay, user-bound AEAD, missing keys, safe initialization, separate duty lifetime defaults and operator-target guards.
-- `tests/integration/mfa.test.ts`: 13 real-DB checks covering enrollment, replay/concurrency, recovery/new generation, PIN, reset, runtime-role/column grants, operator CLI refusal/confirmation/audit, actual key rotation, explicit second-admin seed, pending expiry, disabling and recent-MFA/policy preservation.
-- `tests/e2e/http.test.ts`: 4 original actual-server regression checks, administrator login now completes real TOTP.
-- `tests/e2e/mfa-http.test.ts`: 5 actual-server checks for MFA gates, cookie rotation/replay, admin recovery and new-factor confirmation, assisted reset, lockout/expiry, CSRF and absent duty/operator routes.
+| File | Tests |
+| --- | ---: |
+| tests/checkpoint/rls.test.ts | 5 |
+| tests/integration/foundation.test.ts | 18 |
+| tests/integration/mfa.test.ts | 13 |
+| tests/integration/duty.test.ts | 8 |
+| tests/unit/mfa.test.ts | 6 |
+| tests/unit/money-time.test.ts | 4 |
+| tests/e2e/http.test.ts | 4 |
+| tests/e2e/mfa-http.test.ts | 5 |
+| tests/e2e/duty-http.test.ts | 10 |
+| **Total** | **73** |
 
-Total: **46 unit/database checks + 9 real HTTP checks = 55 automated tests**. Exact executed results and build/replay evidence are in PHASE_2A_REPORT.md. Tests use a dedicated `_test` database and random fake users; migration/owner access is limited to fixtures and operator CLI tests. Direct runtime-role probes verify denied PIN/recovery hashes, enrollment ciphertext, forged claims, cross-user enrollment reads, role escalation and operator function execution. Schema replay verifies all eleven migrations create exactly fifteen RLS-enabled application tables; duty_authorizations/auth_challenges are absent.
+**54 unit/database + 19 actual HTTP checks**, including all 55 previous checks and 18 new duty checks. Targeted reruns are not counted as extra tests. Exact final results, build/replay/audit and known limits are in PHASE_2B_REPORT.md.
 
-The operator test sets NODE_ENV=production against the **local test database** to prove refusal without a flag and successful explicit confirmation with it. No production system is touched. The rotation test selects a temporary test key and restores the original selection in `finally`; run database and HTTP suites sequentially. Audit records are retained; tests do not truncate protected history. No raw enrollment QR, recovery code, PIN or key is written to report/screenshots. Browser evidence shows only empty forms and fake test access.
+Additional new evidence includes max-100 bulk success/101 rejection, atomic invalid-employee rollback, unchanged active no-ops (including an older valid overnight snapshot after WORK is disabled), explicit regrant reasons/versioning, direct-function null-action rejection, active employment enforcement, revocation of disabled employees, no expired-handle revival on reactivation, hidden owner-only guard base, no arbitrary runtime grant/challenge writes and UTC HTTP timestamp/12-hour reconciliation. SECURITY switch invalidates access/challenges but permits a fresh same-grant challenge under current policy, never reuse of the invalidated proof.
+
+Race tests use owner-held PostgreSQL row locks and observe actual blocked requests before release, rather than hoping concurrent promises happen in a particular order. The trusted-clock tests drive real HTTP requests through real RLS. Fixtures restore policy/clock settings; only test network counters are reset for isolation after clock tests. Audit/history rows remain intact. Key rotation and clock tests run sequentially with HTTP tests. Screenshots contain fake authorization data and an empty TOTP field, never OTPs, QR secrets, bearer tokens, PINs or recovery codes.
+
+Clean replay checks all fifteen migrations and exactly seventeen RLS-enabled application tables. No projects, tasks, uploads, shifts, timers, attendance, payroll or payment tables were introduced. A clean migration replay is not a production backup/restore rehearsal.

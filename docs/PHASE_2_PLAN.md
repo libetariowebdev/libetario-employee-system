@@ -1,6 +1,32 @@
 # Phase 2 plan — Duty security
 
-Status: **APPROVED with owner amendments below. Implement checkpoint 2a only, then stop for approval.** Prepared 30 October 2026, Asia/Manila.
+Status: **2a accepted; 2b approved and implemented. Stop before Phase 3.** Prepared 30 October 2026, Asia/Manila. Results: PHASE_2B_REPORT.md.
+
+## Approved 2b implementation record
+
+The owner accepted 2a and authorized 2b. Exactly two tables were added (duty_authorizations and auth_challenges), giving seventeen application tables. The original proposal below is historical where superseded by approved amendments. Administrator MFA continues to use the accepted SETUP flow; auth_challenges serves DUTY_LOGIN and DUTY_REAUTH only.
+
+```text
+ACCOUNT cookie + fresh password + own active dated grant
+  -> five-minute bound DUTY_LOGIN challenge
+  -> PIN when current SECURITY policy requires it (rotate token and CSRF)
+  -> current TOTP, globally increasing accepted counter
+  -> consume challenge, rotate ACCOUNT cookie, issue separate DUTY cookie
+
+Prior DUTY handle + same active grant/version, while valid_until has not passed
+  -> five-minute DUTY_REAUTH challenge under CURRENT policy
+  -> PIN when enabled -> current TOTP -> rotate DUTY handle only
+  -> no repeat password and no new ACCOUNT session from this reauthentication
+
+Every protected request/query -> shared DAL -> private.duty_context()
+  -> scope + account/enrollment/PIN/policy + grant state/version/window checks
+Committed revoke -> increment version + revoke sessions/challenges + audit atomically
+  -> next protected HTTP request/direct guard query denied; no records deleted
+```
+
+DUTY rows expire after 30 idle minutes and at min(valid_until, issue time + configured maximum of twelve hours). The opaque duty cookie remains until valid_until as a reauthentication binding only; this never extends protected access past the server-enforced session deadline. Expired, SECURITY-changed or PIN-changed handles can start a new MFA challenge for the same still-active grant, using current policy/factors. Logout, duty revoke/regrant, disabling, account credential reset, factor-generation change and employment invalidation cannot revive old handles. Clearing the handle requires fresh account/password duty login; new backdated starts are denied. Overnight continuation retains the original grant/date/version, requires first authentication on that duty date and cannot manufacture next-date activation or paid time.
+
+Work policy defaults are overnightEnabled=false and overnightCarryHours=8 (configurable 1–8). Enabling it does not extend existing grant windows. Changes require recent administrator MFA, expected policy ID and a reason. Clock overrides exist only in migration-owner fixtures for the dedicated local test database; no request header/parameter or production environment clock override exists. Backend connections explicitly use UTC, with Asia/Manila presentation and date boundaries.
 
 ## Approved checkpoint split and superseding decisions
 
@@ -15,7 +41,7 @@ The owner's latest approval supersedes any conflicting original proposal below.
 
 These amendments replace the original RECOVERY_REQUIRED suspension/assistance-only recovery path and the original DUTY 15/60 session limits. Recovery uses SETUP, not a privileged recovery scope. Historical detailed sections below remain the original design reference where consistent with this addendum.
 
-Phase 1 is owner-verified and accepted. Source: BLUEPRINT.md Sections 5, 14 and 15, the accepted Phase 1 foundation, and the owner's Phase 2 decisions. At original plan preparation no Phase 2 code or database changes had been made. The approved 2a implementation and verification are now recorded in PHASE_2A_REPORT.md; 2b remains gated on separate approval.
+Phase 1 is owner-verified and accepted. Source: BLUEPRINT.md Sections 5, 14 and 15, the accepted Phase 1 foundation, and the owner's Phase 2 decisions. At original plan preparation no Phase 2 code or database changes had been made. The accepted 2a implementation is recorded in PHASE_2A_REPORT.md; the approved 2b delivery is recorded in PHASE_2B_REPORT.md. Phase 3 remains gated on separate approval.
 
 ## Scope and explicit extension
 

@@ -1,8 +1,8 @@
-# Libetario team workspace — Phase 2a
+# Libetario team workspace — Phase 2b
 
 Standalone employee-management foundation for Libetario Digital Marketing Services. Next.js App Router + TypeScript + Tailwind, PostgreSQL 18, Prisma 7 migrations, Argon2id passwords, persisted account sessions, server authorization and PostgreSQL row-level security.
 
-Real account/profile/rate/schedule management now includes encrypted authenticator enrollment, mandatory administrator TOTP, hashed employee PINs, single-use recovery codes and assisted authenticator reset. Duty authorization/login/sessions/screens are checkpoint 2b, pending approval. Tasks, attendance and payroll/PDF remain later phases. Signing in does not record paid time. Exactly fifteen application tables exist: the twelve Phase 1 tables plus mfa_enrollments, employee_pins and recovery_codes.
+Real account/profile/rate/schedule management includes encrypted authenticator enrollment, mandatory administrator TOTP, hashed employee PINs, recovery/reset and secure duty authorization/login. Exactly seventeen application tables exist: the accepted fifteen plus duty_authorizations and auth_challenges. Tasks, attendance and payroll/PDF remain later phases. Signing in does not record paid time. Phase 3 has not started.
 
 ## Start locally
 
@@ -60,13 +60,25 @@ Seed refuses production, remote hosts, unexpected database names, and databases 
 
 **Employee:** sign in and replace the temporary password. View your own profile, individual rate history and schedule. There is no employee directory or profile-edit endpoint. Change your password from My profile, or ask the administrator to verify your identity and issue a reset token.
 
-Employees use Account security to enroll TOTP and save recovery codes. Setting/changing/replacing a forgotten six-digit PIN requires current password plus a fresh TOTP. PINs are Argon2id-hashed. SECURITY.pinEnabled ships **false**; no duty PIN enforcement is claimed before 2b. ACCOUNT sessions retain 15-minute idle/60-minute absolute defaults. SETUP is five minutes absolutely, with no sliding extension. For 2b, separate SECURITY defaults are dutyIdleMinutes=30 and dutyMaxHours=12, capped by the authorized duty window end; same-grant reauthentication will require current TOTP plus PIN when enabled, without repeating password login.
+Employees use Account security to enroll TOTP and save recovery codes. Setting/changing/replacing a forgotten six-digit PIN requires current password plus a fresh TOTP. PINs are Argon2id-hashed. SECURITY.pinEnabled ships **false**; duty sign-in enforces it when enabled. ACCOUNT sessions retain 15-minute idle/60-minute absolute defaults. SETUP is five minutes absolutely, with no sliding extension. Separate SECURITY defaults are dutyIdleMinutes=30 and dutyMaxHours=12, capped by the authorized duty window end; same-grant reauthentication requires current TOTP plus PIN when enabled, without repeating password login.
 
 TOTP uses SHA1, six digits, 30-second periods and ±1-step drift. A consumed counter cannot be reused, including the enrollment-confirmation code. Wait for a fresh code before a second action. PIN/TOTP/recovery default to five failed attempts per account/factor in 15 minutes and a 15-minute lockout. SETUP is revoked on its fifth failure; reissuing it does not clear account/network counters. Network factor limit is 30 and recovery network limit is five. Security settings are versioned; unfinished SETUP capabilities are invalidated on a security-policy change.
 
 **Reset:** administrator opens the employee profile, records how identity was verified, and issues a token. Every existing session and older reset token is invalidated immediately. The token is shown once for private delivery. Employee enters it at `/reset-password` with a new password, then signs in afresh. Default validity is 15 minutes. No email transport is claimed or configured.
 
 An account with an unconfigured rate or schedule displays an explicit empty state. New profiles do not inherit a fictional wage or workweek. Money inputs are decimal strings; the exact four-decimal rate remains visible alongside the two-decimal PHP display. History end dates are exclusive.
+
+## Duty authorization and secure access
+
+Administrators open **Duty access**, select a Manila duty date, enter a reason and explicitly select employees to activate (maximum 100). Bulk activation is all-or-nothing; identical active windows are unchanged. Revoked grants require the separate **Regrant** action with a reason. Revoke increments the grant's authorization version, revokes bound DUTY sessions/challenges and audits in one transaction. Next-request access fails immediately after commit; no history is deleted. The dashboard shows real authorization records and a date/event/employee-filtered redacted security log, with explicit refresh/fetch time.
+
+Employees open **Duty access** to view their own status/date and enter their current password. If PIN is enabled, it is a separate step; missing PIN blocks duty until configured in Account security. Enter the current code from the authenticator app after the optional PIN step. Successful PIN rotates challenge/CSRF; all stages share the original five-minute deadline. A TOTP used for enrollment, account reauthentication or another challenge cannot be reused. The app never displays a generated login TOTP. Successful duty authentication opens `/duty/context`; `/api/duty/context` and the page use the same server/DAL/database guard. ACCOUNT cookies cannot access it. There is no clock-in, timer or paid time.
+
+DUTY access uses a separate opaque cookie, with **30-minute idle** and **maximum twelve-hour absolute** server limits capped by the grant's valid_until. The cookie remains until the grant window ends only as a binding for same-grant reauthentication at `/duty/reauth`: current TOTP plus PIN when enabled, without another password. It cannot access protected data while expired. SECURITY/PIN changes revoke access and require fresh MFA under current requirements; grant revoke/regrant, logout, disabling, employment invalidation, account reset or factor-generation change cannot revive old tokens. Reauthentication rotates the duty handle and does not mint an ACCOUNT session. The account's own 15/60-minute limits remain independent. Sign out of duty from its protected context page, or sign out of the account workspace to clear both scopes.
+
+Overnight is **disabled by default**. An administrator with recent MFA may append a WORK policy version permitting it, with a configurable carry ceiling of **1–8 hours** (default eight) after midnight. Each overnight grant still needs an explicit bounded end time; switching work policy does not extend an existing window. A grant first authenticated on its authorized date retains that date/version across Manila midnight and same-grant MFA reauthentication. Non-overnight access expires at midnight. There is no automatic next-date grant or new backdated start. Cleared handles or reset credentials may require fresh account/password login; a new start after the authorized date is denied. No recorded time is erased or calculated at these boundaries; attendance is Phase 4.
+
+Backend connections explicitly use UTC; UI dates and windows use Asia/Manila. Test clock overrides are migration-owner fixtures in the dedicated local test database only, restored in finally. No HTTP field/header or production environment variable can change the clock. Run clock/rotation database tests and HTTP tests sequentially. The current checkpoint report and acceptance map distinguish passed duty-security portions from deferred time/upload/payroll work.
 
 ## Authenticator recovery and second administrator
 
@@ -119,7 +131,7 @@ pnpm typecheck
 pnpm build
 ```
 
-The replay check creates a new randomly named database, applies all eleven migrations, checks the fifteen-table/RLS boundary, and drops only that freshly created disposable database. Tests add randomly named fixtures to `libetario_test`, retaining test history instead of truncating protected audit records. Run the database suite and HTTP suite sequentially: the operator rotation test temporarily selects a test key and restores it in `finally`.
+The replay check creates a new randomly named database, applies all fifteen migrations, checks the seventeen-table/RLS boundary, and drops only that freshly created disposable database. Tests add randomly named fixtures to `libetario_test`, retaining test history instead of truncating protected audit records. Run the database suite and HTTP suite sequentially: operator rotation and trusted-clock fixtures temporarily change test-only state and restore it in `finally`.
 
 For real HTTP checks, start a separate test server in one terminal:
 
@@ -134,4 +146,4 @@ Then run `pnpm test:http` in another terminal. Close the test-server terminal or
 
 `pnpm start` is a production server: production runtime requires an HTTPS `APP_ORIGIN`, appropriate reverse-proxy/TLS setup, and real environment secrets. Use `pnpm dev` for the local HTTP workflow. Passing a build does not authorize deploying real employee data before the duty-security and release gates.
 
-See [Phase 2a report](docs/PHASE_2A_REPORT.md), [accepted Phase 1 report](docs/PHASE_1_REPORT.md), [policy defaults](docs/ASSUMPTIONS.md), [security and backup notes](docs/SECURITY.md), and [acceptance coverage](docs/TEST_COVERAGE.md). Stop before checkpoint 2b pending owner approval.
+See [Phase 2b report](docs/PHASE_2B_REPORT.md), [accepted Phase 2a report](docs/PHASE_2A_REPORT.md), [policy defaults](docs/ASSUMPTIONS.md), [security and backup notes](docs/SECURITY.md), and [acceptance coverage](docs/TEST_COVERAGE.md). Stop before Phase 3 pending owner approval.

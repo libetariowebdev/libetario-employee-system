@@ -2,7 +2,22 @@
 
 Status: Phase 1 accepted; Phase 2 approved with the checkpoint amendments below. Implement 2a only and stop for owner approval before 2b. These are software safeguards, not a determination of employment classification or payroll compliance.
 
-## Latest approved Phase 2 amendments (supersede earlier proposals below)
+## Current checkpoint 2b defaults (supersede historical proposals below)
+
+2a is owner-accepted and 2b is authorized. Exactly seventeen application tables now exist. No Phase 3 work has started.
+
+| Area | Implemented default and behavior |
+| --- | --- |
+| Duty / account scopes | Separate libetario_session (ACCOUNT/SETUP) and libetario_duty cookies. ACCOUNT cannot satisfy the duty guard; DUTY does not impersonate ordinary ACCOUNT scope. Initial duty login requires an enabled ACTIVE employee, own activated dated grant, fresh password, current PIN when enabled and TOTP. It rotates ACCOUNT and DUTY tokens. |
+| Duty lifetimes | Idle 30 minutes; absolute min(valid_until, issuance + dutyMaxHours), default/max twelve hours. Both SECURITY fields are configurable within validated bounds. ACCOUNT stays 15/60. The duty cookie is retained until valid_until solely so an expired server session can bind same-grant reauthentication; expired cookies cannot access tools. |
+| Reauthentication | Same exact active grant/version, current TOTP plus current PIN when enabled; no repeated password and no ACCOUNT privilege issued. A handle expired or invalidated by SECURITY/PIN change is only an enrollment-bound reauthentication handle. Current policy/factor requirements are re-proved; the revoked session itself remains unusable. Logout, duty revocation/regrant, employment invalidation, disabled account, password/authenticator reset or enrollment generation change blocks old handles. Lost/cleared handles require fresh account/password login. |
+| Challenge | DUTY_LOGIN/DUTY_REAUTH only, five minutes total, capped by valid_until, bound to user/session/grant/version/policy/enrollment generation/PIN version. Successful PIN rotates token and session/challenge-bound CSRF without extending deadline. Fifth failure invalidates the challenge; account/network lockouts persist across replacements. Foreign bindings never increment the victim's account counter. |
+| Mutation defaults | Activate/revoke/regrant require a 10–500-character reason. Bulk activation is atomic, max 100 explicit unique active employees; identical active windows are no-ops. Existing changed/revoked grants require explicit revoke/regrant. Revoke/regrant increment authorization_version and invalidate bound credentials atomically. Revoking an already-revoked grant is a no-op. No COMPLETED/clock action is exposed. |
+| Overnight | Disabled by default. WORK.overnightCarryHours defaults to eight, configurable 1–8. Explicit overnight window must end after midnight and no later than the configured ceiling. First security authentication must occur on the authorized Manila date; subsequent bound reauthentication keeps that date/version until valid_until. Regrant resets continuation eligibility and cannot enable a new backdated start. No next-date authorization is implicit. |
+| Policy switches | SECURITY change invalidates unfinished challenges and all DUTY access; fresh current-policy MFA is required. WORK changes do not silently alter saved grant windows. Work policy edits require recent admin MFA, expected current policy ID and reason, while preserving unrelated fields. PIN remains SECURITY.pinEnabled=false by default. |
+| Time / tests | All backend connections explicitly use UTC; display and business dates use Asia/Manila. The trusted clock is private.security_now(). Only the migration owner in the dedicated local libetario_test database may replace it in fixtures; fixtures restore it in finally. There is no request/environment override and no OS clock change. No shift, attendance, timer or paid-time data is created. |
+
+## Historical approved Phase 2a amendments
 
 | Area | Approved behavior |
 | --- | --- |
