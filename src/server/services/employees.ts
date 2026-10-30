@@ -115,7 +115,12 @@ export const scheduleSchema = z
     }
   });
 function admin(s: Session) {
-  if (s.role !== "ADMINISTRATOR" || s.must_change_password)
+  if (
+    s.role !== "ADMINISTRATOR" ||
+    s.must_change_password ||
+    s.scope !== "ACCOUNT" ||
+    !s.mfa_verified_at
+  )
     throw new HttpError(403, "Administrator access required");
 }
 async function reason(tx: Prisma.TransactionClient, value: string) {
@@ -349,7 +354,8 @@ export async function updateSecurity(s: Session, input: unknown) {
   admin(s);
   const data = z
     .strictObject({
-      configuration: securitySchema,
+      expectedPolicyId: z.uuid(),
+      configuration: z.record(z.string(), z.unknown()),
       reason: z.string().trim().min(10).max(500),
     })
     .parse(input);
@@ -360,11 +366,19 @@ export async function updateSecurity(s: Session, input: unknown) {
       where: { policy_key: "SECURITY" },
       orderBy: { revision: "desc" },
     });
+    if (current.id !== data.expectedPolicyId)
+      throw new HttpError(409, "Security policy changed; reload before saving");
+    const configuration = securitySchema
+      .strict()
+      .parse({
+        ...(current.configuration as Record<string, unknown>),
+        ...data.configuration,
+      });
     const p = await tx.policy_versions.create({
       data: {
         policy_key: "SECURITY",
         revision: current.revision + 1,
-        configuration: data.configuration,
+        configuration,
         created_by: s.user_id,
       },
     });

@@ -1,6 +1,7 @@
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import { fixture } from "../helpers";
+import { otp } from "../../src/lib/mfa-crypto";
 const origin = process.env.HTTP_TEST_ORIGIN ?? "http://127.0.0.1:3001";
 if (!["127.0.0.1", "localhost"].includes(new URL(origin).hostname))
   throw new Error("HTTP tests must target local development");
@@ -25,6 +26,27 @@ before(async () => {
   a = await signIn("a_" + f.suffix, f.password);
   b = await signIn("b_" + f.suffix, f.password);
   admin = await signIn("admin_" + f.suffix, f.password);
+  assert.equal(
+    (
+      await fetch(origin + "/api/admin/employees", {
+        headers: { cookie: admin },
+      })
+    ).status,
+    403,
+  );
+  const context = await (
+    await fetch(origin + "/api/session", { headers: { cookie: admin } })
+  ).json();
+  const response = await fetch(origin + "/api/auth/mfa/verify", {
+    method: "POST",
+    headers: { origin, "content-type": "application/json", cookie: admin },
+    body: JSON.stringify({
+      csrf: context.csrf,
+      code: otp(f.adminSecret, Date.now()),
+    }),
+  });
+  assert.equal(response.status, 200);
+  admin = response.headers.get("set-cookie")!.split(";")[0];
 });
 after(async () => {
   await f.owner.end();

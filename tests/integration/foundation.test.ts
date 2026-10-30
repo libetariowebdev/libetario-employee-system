@@ -466,7 +466,7 @@ test("replacement reset tokens invalidate predecessors; reset-token lockout prev
     await temp.owner.end();
   }
 });
-test("only the twelve approved tables migrate and every application table has RLS enabled", async () => {
+test("only the fifteen checkpoint 2a tables migrate and every application table has RLS enabled", async () => {
   const rows = (
     await f.owner.query(
       "SELECT c.relname,c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_prisma_migrations' ORDER BY c.relname",
@@ -479,11 +479,14 @@ test("only the twelve approved tables migrate and every application table has RL
       "auth_events",
       "company_settings",
       "credential_resets",
+      "employee_pins",
       "employee_profiles",
       "employee_rate_history",
       "employee_schedule_days",
       "employee_schedule_history",
+      "mfa_enrollments",
       "policy_versions",
+      "recovery_codes",
       "security_throttles",
       "sessions",
       "users",

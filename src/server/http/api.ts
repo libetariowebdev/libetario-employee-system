@@ -17,6 +17,7 @@ import {
 } from "../auth/service";
 import * as employees from "../services/employees";
 import { scoped } from "../db";
+import * as mfa from "../auth/mfa";
 const idSchema = z.uuid();
 const noStore = { "Cache-Control": "private, no-store" };
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
@@ -104,11 +105,47 @@ export async function api(request: Request, path: string[]): Promise<Response> {
         "Set-Cookie": cookieString("libetario_session", "", 0),
       });
     }
+    if (
+      method === "POST" &&
+      ["auth/mfa/recover", "auth/mfa/reset/redeem"].includes(key)
+    ) {
+      assertCsrf(request, body.csrf);
+      const b = z
+        .object({
+          identifier: z.string().trim().min(1).max(254),
+          password: z.string().min(1).max(512),
+          code: z.string().min(1).max(150),
+        })
+        .parse(body);
+      const issued =
+        key === "auth/mfa/recover"
+          ? await mfa.recoverAuthenticator(
+              b.identifier,
+              b.password,
+              b.code,
+              networkKey(request),
+            )
+          : await mfa.redeemAuthenticatorReset(
+              b.identifier,
+              b.password,
+              b.code,
+              networkKey(request),
+            );
+      return json({ ok: true }, 200, {
+        "Set-Cookie": cookieString(
+          "libetario_session",
+          issued.token,
+          issued.maxAge,
+        ),
+      });
+    }
     const s = await session(
       cookie(request, "libetario_session"),
       key === "auth/change-password" ||
         key === "auth/logout" ||
-        key === "session",
+        key === "session" ||
+        key.startsWith("auth/mfa/"),
+      true,
     );
     if (method !== "GET") assertCsrf(request, body.csrf, s.token);
     const { csrf: _csrf, ...input } = body;
@@ -118,6 +155,8 @@ export async function api(request: Request, path: string[]): Promise<Response> {
         role: s.role,
         must_change_password: s.must_change_password,
         csrf: s.csrf,
+        scope: s.scope,
+        setup_purpose: s.setup_purpose,
       });
     if (method === "POST" && key === "auth/logout") {
       await logout(s);
@@ -134,6 +173,75 @@ export async function api(request: Request, path: string[]): Promise<Response> {
         "Set-Cookie": cookieString("libetario_session", "", 0),
       });
     }
+    if (key.startsWith("auth/mfa/")) {
+      const network = networkKey(request);
+      if (method === "GET" && key === "auth/mfa/status")
+        return json(await mfa.mfaStatus(s));
+      if (method === "POST" && key === "auth/mfa/enroll") {
+        const b = z
+          .object({
+            password: z.string().min(1).max(512),
+            replace: z.boolean().default(false),
+          })
+          .parse(body);
+        return json(
+          await mfa.beginEnrollment(s, b.password, b.replace, network),
+        );
+      }
+      if (
+        method === "POST" &&
+        ["auth/mfa/confirm", "auth/mfa/verify", "auth/mfa/reauth"].includes(key)
+      ) {
+        const b = z
+          .object({
+            code: z.string().max(32),
+            enrollmentId: z.uuid().optional(),
+          })
+          .parse(body);
+        if (key === "auth/mfa/reauth")
+          return json(await mfa.reauthenticateMfa(s, b.code, network));
+        if (key === "auth/mfa/confirm" && !b.enrollmentId)
+          throw new HttpError(400, "Enrollment is required");
+        const result =
+          key === "auth/mfa/confirm"
+            ? await mfa.confirmEnrollment(s, b.enrollmentId!, b.code, network)
+            : await mfa.verifyAdminMfa(s, b.code, network);
+        return json(
+          { ok: true, ...("codes" in result ? { codes: result.codes } : {}) },
+          200,
+          {
+            "Set-Cookie": cookieString(
+              "libetario_session",
+              result.token,
+              result.maxAge,
+            ),
+          },
+        );
+      }
+      if (
+        method === "POST" &&
+        ["auth/mfa/pin", "auth/mfa/codes"].includes(key)
+      ) {
+        const b = z
+          .object({
+            password: z.string().min(1).max(512),
+            code: z.string().max(32),
+            pin: z.string().max(32).optional(),
+          })
+          .parse(body);
+        return json(
+          key === "auth/mfa/pin"
+            ? await mfa.setPin(s, b.password, b.code, b.pin ?? "", network)
+            : await mfa.regenerateCodes(s, b.password, b.code, network),
+        );
+      }
+      throw new HttpError(404, "Not found");
+    }
+    if (s.scope !== "ACCOUNT")
+      throw new HttpError(
+        403,
+        "Complete authenticator verification or setup first",
+      );
     if (method === "GET" && key === "me")
       return json(await employees.employeeDetails(s, s.user_id));
     if (path[0] !== "admin") throw new HttpError(404, "Not found");
@@ -168,6 +276,17 @@ export async function api(request: Request, path: string[]): Promise<Response> {
           .strictObject({ note: z.string().trim().min(10).max(500) })
           .parse(input);
         return json({ token: await requestReset(s, id, b.note) });
+      }
+      if (path[3] === "mfa-reset" && method === "POST") {
+        const b = z
+          .strictObject({
+            note: z.string().trim().min(10).max(500),
+            reason: z.string().trim().min(10).max(500),
+          })
+          .parse(input);
+        return json({
+          token: await mfa.requestMfaReset(s, id, b.note, b.reason),
+        });
       }
     }
     throw new HttpError(404, "Not found");

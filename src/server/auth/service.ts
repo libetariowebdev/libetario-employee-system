@@ -17,10 +17,15 @@ type Identity = {
   role: "ADMINISTRATOR" | "EMPLOYEE";
   must_change_password: boolean;
   session_id: string;
+  scope: "ACCOUNT" | "SETUP";
+  setup_purpose: string | null;
+  mfa_enrollment_id: string | null;
+  mfa_verified_at: Date | null;
+  password_verified_at: Date | null;
 };
 export type Session = Identity & { token: string; hash: string; csrf: string };
 const dummyHash = hashPassword(`Unused-${randomToken()}`);
-async function transaction<T>(fn: (c: PoolClient) => Promise<T>) {
+export async function transaction<T>(fn: (c: PoolClient) => Promise<T>) {
   const c = await authPool.connect();
   try {
     await c.query("BEGIN");
@@ -40,7 +45,11 @@ export async function securityPolicy(c?: PoolClient) {
   );
   return securitySchema.parse(result.rows[0].policy);
 }
-async function throttle(c: PoolClient, keys: string[], limits: number[]) {
+export async function throttle(
+  c: PoolClient,
+  keys: string[],
+  limits: number[],
+) {
   const p = await securityPolicy(c);
   for (const key of [...keys].sort())
     await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
@@ -87,7 +96,7 @@ async function throttle(c: PoolClient, keys: string[], limits: number[]) {
     },
   };
 }
-async function event(
+export async function event(
   c: PoolClient,
   user: string | null,
   type: string,
@@ -100,6 +109,48 @@ async function event(
     [user, sessionId, type, outcome, network],
   );
 }
+export async function issueSession(
+  c: PoolClient,
+  userId: string,
+  version: number,
+  options: {
+    purpose?: string;
+    enrollmentId?: string;
+    verified?: boolean;
+    resetId?: string;
+    recoveryId?: string;
+    passwordAt?: Date;
+  } = {},
+) {
+  const p = await securityPolicy(c),
+    token = randomToken(),
+    id = randomUUID(),
+    csrf = csrfForSession(token);
+  const setup = Boolean(options.purpose),
+    idle = setup ? p.setupMinutes : p.idleMinutes,
+    absolute = setup ? p.setupMinutes : p.absoluteMinutes;
+  await c.query(
+    `INSERT INTO sessions(id,user_id,token_hash,csrf_token_hash,scope,setup_purpose,authorization_version,password_verified_at,mfa_enrollment_id,mfa_verified_at,reset_id,recovery_enrollment_id,security_policy_id,idle_expires_at,absolute_expires_at)
+    VALUES($1,$2,$3,$4,$5,$6,$7,coalesce($14::timestamptz,private.security_now()),$8,CASE WHEN $9 THEN private.security_now() ELSE NULL END,$10,$11,private.current_security_policy_id(),private.security_now()+make_interval(mins=>$12),private.security_now()+make_interval(mins=>$13))`,
+    [
+      id,
+      userId,
+      digest(token),
+      digest(csrf),
+      setup ? "SETUP" : "ACCOUNT",
+      options.purpose ?? null,
+      version,
+      options.enrollmentId ?? null,
+      options.verified ?? false,
+      options.resetId ?? null,
+      options.recoveryId ?? null,
+      idle,
+      absolute,
+      options.passwordAt ?? null,
+    ],
+  );
+  return { token, maxAge: absolute * 60, id };
+}
 export async function login(
   identifier: string,
   password: string,
@@ -109,7 +160,7 @@ export async function login(
     const canonical = identifier.trim().toLowerCase();
     const u = (
       await c.query(
-        "SELECT id,password_hash,authorization_version,disabled_at FROM users WHERE email=$1 OR username=$1",
+        "SELECT id,password_hash,authorization_version,disabled_at,role,must_change_password FROM users WHERE email=$1 OR username=$1",
         [canonical],
       )
     ).rows[0];
@@ -135,9 +186,6 @@ export async function login(
       await event(c, u?.id ?? null, "LOGIN", "FAILED", network);
       return null;
     }
-    const token = randomToken(),
-      csrf = csrfForSession(token),
-      id = randomUUID();
     // Lock account before issuing a session so disabling/reset cannot race login.
     const live = (
       await c.query(
@@ -149,21 +197,41 @@ export async function login(
       await event(c, u.id, "LOGIN", "FAILED", network);
       return null;
     }
-    await c.query(
-      "INSERT INTO sessions(id,user_id,token_hash,csrf_token_hash,authorization_version,idle_expires_at,absolute_expires_at) VALUES($1,$2,$3,$4,$5,clock_timestamp()+make_interval(mins=>$6),clock_timestamp()+make_interval(mins=>$7))",
-      [
-        id,
-        u.id,
-        digest(token),
-        digest(csrf),
-        u.authorization_version,
-        t.p.idleMinutes,
-        t.p.absoluteMinutes,
-      ],
-    );
+    let purpose: string | undefined;
+    let enrollmentId: string | undefined;
+    if (u.must_change_password) purpose = "PASSWORD_CHANGE";
+    else if (u.role === "ADMINISTRATOR") {
+      const e = (
+        await c.query(
+          "SELECT id,state,confirmed_at FROM mfa_enrollments WHERE user_id=$1 ORDER BY generation DESC LIMIT 1",
+          [u.id],
+        )
+      ).rows[0];
+      const history = (
+        await c.query(
+          "SELECT 1 FROM mfa_enrollments WHERE user_id=$1 AND (confirmed_at IS NOT NULL OR state='REVOKED') LIMIT 1",
+          [u.id],
+        )
+      ).rowCount;
+      if (e?.state === "CONFIRMED") {
+        purpose = "MFA_LOGIN";
+        enrollmentId = e.id;
+      } else purpose = history ? "MFA_RESET_REQUIRED" : "MFA_ENROLL";
+    }
+    const issued = await issueSession(c, u.id, u.authorization_version, {
+      purpose,
+      enrollmentId,
+    });
     await t.clearAccount();
-    await event(c, u.id, "LOGIN", "SUCCESS", network, id);
-    return { token, maxAge: t.p.absoluteMinutes * 60 };
+    await event(
+      c,
+      u.id,
+      "LOGIN",
+      purpose ? "PASSWORD_VERIFIED" : "SUCCESS",
+      network,
+      issued.id,
+    );
+    return issued;
   });
   if (!outcome)
     throw new HttpError(
@@ -175,13 +243,14 @@ export async function login(
 export async function session(
   token: string | undefined,
   allowPasswordChange = false,
+  allowSetup = false,
 ): Promise<Session> {
   if (!token || !/^[a-f0-9]{64}$/.test(token))
     throw new HttpError(401, "Sign in required");
   const hash = digest(token);
   const rows = await scoped(
     hash,
-    (tx) => tx.$queryRaw<Identity[]>`SELECT * FROM private.identity()`,
+    (tx) => tx.$queryRaw<Identity[]>`SELECT * FROM private.auth_context()`,
   );
   const u = rows[0];
   if (!u) {
@@ -206,11 +275,21 @@ export async function session(
   }
   if (u.must_change_password && !allowPasswordChange)
     throw new HttpError(428, "Change your temporary password first");
+  if (
+    u.scope === "SETUP" &&
+    !allowSetup &&
+    !(allowPasswordChange && u.setup_purpose === "PASSWORD_CHANGE")
+  )
+    throw new HttpError(
+      403,
+      "Complete authenticator setup or verification first",
+    );
   const p = await securityPolicy();
-  await authPool.query(
-    "UPDATE sessions SET last_seen_at=clock_timestamp(),idle_expires_at=least(absolute_expires_at,clock_timestamp()+make_interval(mins=>$2)) WHERE id=$1 AND revoked_at IS NULL AND idle_expires_at>clock_timestamp() AND absolute_expires_at>clock_timestamp()",
-    [u.session_id, p.idleMinutes],
-  );
+  if (u.scope === "ACCOUNT")
+    await authPool.query(
+      "UPDATE sessions SET last_seen_at=clock_timestamp(),idle_expires_at=least(absolute_expires_at,clock_timestamp()+make_interval(mins=>$2)) WHERE id=$1 AND revoked_at IS NULL AND idle_expires_at>clock_timestamp() AND absolute_expires_at>clock_timestamp()",
+      [u.session_id, p.idleMinutes],
+    );
   return { ...u, token, hash, csrf: csrfForSession(token) };
 }
 export async function logout(s: Session) {
@@ -228,6 +307,8 @@ export async function changePassword(
   next: string,
   network: string,
 ) {
+  if (s.scope === "SETUP" && s.setup_purpose !== "PASSWORD_CHANGE")
+    throw new HttpError(403, "Complete MFA first");
   if (!passwordValid(next))
     throw new HttpError(
       400,
@@ -278,6 +359,10 @@ export async function changePassword(
     );
     await c.query(
       "UPDATE sessions SET revoked_at=clock_timestamp(),revocation_reason='PASSWORD_CHANGED' WHERE user_id=$1 AND revoked_at IS NULL",
+      [s.user_id],
+    );
+    await c.query(
+      "UPDATE credential_resets SET consumed_at=clock_timestamp() WHERE user_id=$1 AND consumed_at IS NULL",
       [s.user_id],
     );
     await t.clearAccount();
@@ -341,7 +426,7 @@ export async function completeReset(
       : null;
     const reset = (
       await c.query(
-        "SELECT id,user_id FROM credential_resets WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>clock_timestamp() FOR UPDATE",
+        "SELECT id,user_id FROM credential_resets WHERE token_hash=$1 AND kind='PASSWORD' AND consumed_at IS NULL AND expires_at>clock_timestamp() FOR UPDATE",
         [digest(token)],
       )
     ).rows[0];

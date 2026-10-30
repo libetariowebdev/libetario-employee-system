@@ -3,6 +3,8 @@ config({ path: ".env.test.local", override: true, quiet: true });
 import pg from "pg";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { hash } from "@node-rs/argon2";
+import { sealSecret } from "../src/lib/mfa-crypto";
+import { securitySchema } from "../src/lib/config";
 
 export const digest = (s: string) =>
   createHash("sha256").update(s).digest("hex");
@@ -42,10 +44,40 @@ export async function fixture(options?: { password?: string }) {
     a: randomBytes(32).toString("hex"),
     b: randomBytes(32).toString("hex"),
   };
+  const adminSecret = randomBytes(32),
+    adminEnrollmentId = randomUUID(),
+    adminBindingId = randomUUID();
+  await owner.query(
+    "INSERT INTO sessions(id,user_id,token_hash,csrf_token_hash,scope,setup_purpose,authorization_version,idle_expires_at,absolute_expires_at) VALUES($1,$2,$3,$4,'SETUP','MFA_ENROLL',1,now()+interval '5 min',now()+interval '5 min')",
+    [adminBindingId, ids.admin, digest(randomUUID()), digest(randomUUID())],
+  );
+  const sealed = sealSecret(adminSecret, {
+    id: adminEnrollmentId,
+    user_id: ids.admin,
+    generation: 1,
+  });
+  await owner.query(
+    "INSERT INTO mfa_enrollments(id,user_id,generation,state,ciphertext,nonce,tag,encryption_key_id,enrollment_session_id,confirmed_at,last_accepted_step) VALUES($1,$2,1,'CONFIRMED',$3,$4,$5,$6,$7,now(),$8)",
+    [
+      adminEnrollmentId,
+      ids.admin,
+      sealed.ciphertext,
+      sealed.nonce,
+      sealed.tag,
+      sealed.encryption_key_id,
+      adminBindingId,
+      Math.floor(Date.now() / 30000) - 1,
+    ],
+  );
   for (const [name, token] of Object.entries(tokens)) {
     await owner.query(
-      "INSERT INTO sessions(user_id,token_hash,csrf_token_hash,authorization_version,idle_expires_at,absolute_expires_at) VALUES($1,$2,$3,1,now()+interval '15 min',now()+interval '60 min')",
-      [ids[name as keyof typeof ids], digest(token), digest(token + "csrf")],
+      "INSERT INTO sessions(user_id,token_hash,csrf_token_hash,authorization_version,idle_expires_at,absolute_expires_at,mfa_enrollment_id,mfa_verified_at) VALUES($1,$2,$3,1,now()+interval '15 min',now()+interval '60 min',$4,CASE WHEN $4::uuid IS NOT NULL THEN now() ELSE NULL END)",
+      [
+        ids[name as keyof typeof ids],
+        digest(token),
+        digest(token + "csrf"),
+        name === "admin" ? adminEnrollmentId : null,
+      ],
     );
   }
   await owner.query("SELECT set_config('app.session_hash',$1,false)", [
@@ -57,7 +89,7 @@ export async function fixture(options?: { password?: string }) {
   if (!policies) {
     const p: Record<string, string> = {};
     const configs = {
-      SECURITY: {
+      SECURITY: securitySchema.parse({
         idleMinutes: 15,
         absoluteMinutes: 60,
         accountLimit: 5,
@@ -65,7 +97,7 @@ export async function fixture(options?: { password?: string }) {
         windowMinutes: 15,
         lockMinutes: 15,
         resetMinutes: 15,
-      },
+      }),
       WORK: { pinEnabled: false, breaksPaid: true, overnightEnabled: false },
       PAY: {
         rounding: "HALF_UP",
@@ -107,5 +139,14 @@ export async function fixture(options?: { password?: string }) {
       ],
     );
   }
-  return { owner, ids, tokens, suffix, password, policies };
+  return {
+    owner,
+    ids,
+    tokens,
+    suffix,
+    password,
+    policies,
+    adminSecret,
+    adminEnrollmentId,
+  };
 }
