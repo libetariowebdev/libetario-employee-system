@@ -15,7 +15,7 @@ The owner's latest approval supersedes any conflicting original proposal below.
 
 These amendments replace the original RECOVERY_REQUIRED suspension/assistance-only recovery path and the original DUTY 15/60 session limits. Recovery uses SETUP, not a privileged recovery scope. Historical detailed sections below remain the original design reference where consistent with this addendum.
 
-Phase 1 is owner-verified and accepted. Source: BLUEPRINT.md Sections 5, 14 and 15, the accepted Phase 1 foundation, and the owner's Phase 2 decisions. This document proposes Phase 2 only. No Phase 2 application code, dependencies, migrations or database changes have been made.
+Phase 1 is owner-verified and accepted. Source: BLUEPRINT.md Sections 5, 14 and 15, the accepted Phase 1 foundation, and the owner's Phase 2 decisions. At original plan preparation no Phase 2 code or database changes had been made. The approved 2a implementation and verification are now recorded in PHASE_2A_REPORT.md; 2b remains gated on separate approval.
 
 ## Scope and explicit extension
 
