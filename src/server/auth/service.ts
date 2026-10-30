@@ -64,12 +64,12 @@ export async function throttle(
     );
     // A lock survives a window rollover. After its expiry a fresh window starts.
     await c.query(
-      "UPDATE security_throttles SET failure_count=0,window_started_at=clock_timestamp(),locked_until=NULL WHERE scope=$1 AND subject_digest=$2 AND (locked_until IS NULL OR locked_until<=clock_timestamp()) AND (window_started_at<=clock_timestamp()-make_interval(mins=>$3) OR locked_until IS NOT NULL)",
+      "UPDATE security_throttles SET failure_count=0,window_started_at=private.security_now(),locked_until=NULL WHERE scope=$1 AND subject_digest=$2 AND (locked_until IS NULL OR locked_until<=private.security_now()) AND (window_started_at<=private.security_now()-make_interval(mins=>$3) OR locked_until IS NOT NULL)",
       [scope, subject, p.windowMinutes],
     );
     const row = (
       await c.query(
-        "SELECT failure_count,locked_until>clock_timestamp() AS locked FROM security_throttles WHERE scope=$1 AND subject_digest=$2",
+        "SELECT failure_count,locked_until>private.security_now() AS locked FROM security_throttles WHERE scope=$1 AND subject_digest=$2",
         [scope, subject],
       )
     ).rows[0];
@@ -82,7 +82,7 @@ export async function throttle(
       for (let i = 0; i < keys.length; i++) {
         const [scope, subject] = keys[i].split(":");
         await c.query(
-          "UPDATE security_throttles SET failure_count=failure_count+1,locked_until=CASE WHEN failure_count+1>=$3 THEN clock_timestamp()+make_interval(mins=>$4) ELSE locked_until END,updated_at=clock_timestamp() WHERE scope=$1 AND subject_digest=$2",
+          "UPDATE security_throttles SET failure_count=failure_count+1,locked_until=CASE WHEN failure_count+1>=$3 THEN private.security_now()+make_interval(mins=>$4) ELSE locked_until END,updated_at=private.security_now() WHERE scope=$1 AND subject_digest=$2",
           [scope, subject, limits[i], p.lockMinutes],
         );
       }
@@ -90,7 +90,7 @@ export async function throttle(
     async clearAccount() {
       const [scope, subject] = keys[0].split(":");
       await c.query(
-        "UPDATE security_throttles SET failure_count=0,locked_until=NULL,window_started_at=clock_timestamp() WHERE scope=$1 AND subject_digest=$2",
+        "UPDATE security_throttles SET failure_count=0,locked_until=NULL,window_started_at=private.security_now() WHERE scope=$1 AND subject_digest=$2",
         [scope, subject],
       );
     },
@@ -105,7 +105,7 @@ export async function event(
   sessionId: string | null = null,
 ) {
   await c.query(
-    "INSERT INTO auth_events(user_id,session_id,event_type,outcome,network_digest) VALUES($1,$2,$3,$4,$5)",
+    "INSERT INTO auth_events(user_id,session_id,event_type,outcome,network_digest,occurred_at) VALUES($1,$2,$3,$4,$5,private.security_now())",
     [user, sessionId, type, outcome, network],
   );
 }
@@ -257,7 +257,7 @@ export async function session(
     await transaction(async (c) => {
       const expired = (
         await c.query(
-          "UPDATE sessions SET revoked_at=clock_timestamp(),revocation_reason='EXPIRED' WHERE token_hash=$1 AND revoked_at IS NULL AND (idle_expires_at<=clock_timestamp() OR absolute_expires_at<=clock_timestamp()) RETURNING id,user_id",
+          "UPDATE sessions SET revoked_at=private.security_now(),revocation_reason='EXPIRED' WHERE token_hash=$1 AND revoked_at IS NULL AND (idle_expires_at<=private.security_now() OR absolute_expires_at<=private.security_now()) RETURNING id,user_id",
           [hash],
         )
       ).rows[0];
@@ -287,7 +287,7 @@ export async function session(
   const p = await securityPolicy();
   if (u.scope === "ACCOUNT")
     await authPool.query(
-      "UPDATE sessions SET last_seen_at=clock_timestamp(),idle_expires_at=least(absolute_expires_at,clock_timestamp()+make_interval(mins=>$2)) WHERE id=$1 AND revoked_at IS NULL AND idle_expires_at>clock_timestamp() AND absolute_expires_at>clock_timestamp()",
+      "UPDATE sessions SET last_seen_at=private.security_now(),idle_expires_at=least(absolute_expires_at,private.security_now()+make_interval(mins=>$2)) WHERE id=$1 AND revoked_at IS NULL AND idle_expires_at>private.security_now() AND absolute_expires_at>private.security_now()",
       [u.session_id, p.idleMinutes],
     );
   return { ...u, token, hash, csrf: csrfForSession(token) };
@@ -295,7 +295,7 @@ export async function session(
 export async function logout(s: Session) {
   await transaction(async (c) => {
     await c.query(
-      "UPDATE sessions SET revoked_at=clock_timestamp(),revocation_reason='LOGOUT' WHERE id=$1 AND revoked_at IS NULL",
+      "UPDATE sessions SET revoked_at=private.security_now(),revocation_reason='LOGOUT' WHERE id=$1 AND revoked_at IS NULL",
       [s.session_id],
     );
     await event(c, s.user_id, "LOGOUT", "SUCCESS", "", s.session_id);
@@ -330,7 +330,7 @@ export async function changePassword(
     ).rows[0];
     const active = (
       await c.query(
-        "SELECT id FROM sessions WHERE id=$1 AND revoked_at IS NULL AND idle_expires_at>clock_timestamp() AND absolute_expires_at>clock_timestamp() AND authorization_version=$2",
+        "SELECT id FROM sessions WHERE id=$1 AND revoked_at IS NULL AND idle_expires_at>private.security_now() AND absolute_expires_at>private.security_now() AND authorization_version=$2",
         [s.session_id, u?.authorization_version],
       )
     ).rows[0];
@@ -354,15 +354,15 @@ export async function changePassword(
     const nextHash = await hashPassword(next);
     await c.query("SELECT set_config('app.session_hash',$1,true)", [s.hash]);
     await c.query(
-      "UPDATE users SET password_hash=$2,must_change_password=false,password_changed_at=clock_timestamp(),authorization_version=authorization_version+1,updated_at=clock_timestamp(),version=version+1 WHERE id=$1",
+      "UPDATE users SET password_hash=$2,must_change_password=false,password_changed_at=private.security_now(),authorization_version=authorization_version+1,updated_at=private.security_now(),version=version+1 WHERE id=$1",
       [s.user_id, nextHash],
     );
     await c.query(
-      "UPDATE sessions SET revoked_at=clock_timestamp(),revocation_reason='PASSWORD_CHANGED' WHERE user_id=$1 AND revoked_at IS NULL",
+      "UPDATE sessions SET revoked_at=private.security_now(),revocation_reason='PASSWORD_CHANGED' WHERE user_id=$1 AND revoked_at IS NULL",
       [s.user_id],
     );
     await c.query(
-      "UPDATE credential_resets SET consumed_at=clock_timestamp() WHERE user_id=$1 AND consumed_at IS NULL",
+      "UPDATE credential_resets SET consumed_at=private.security_now() WHERE user_id=$1 AND consumed_at IS NULL",
       [s.user_id],
     );
     await t.clearAccount();
@@ -426,7 +426,7 @@ export async function completeReset(
       : null;
     const reset = (
       await c.query(
-        "SELECT id,user_id FROM credential_resets WHERE token_hash=$1 AND kind='PASSWORD' AND consumed_at IS NULL AND expires_at>clock_timestamp() FOR UPDATE",
+        "SELECT id,user_id FROM credential_resets WHERE token_hash=$1 AND kind='PASSWORD' AND consumed_at IS NULL AND expires_at>private.security_now() FOR UPDATE",
         [digest(token)],
       )
     ).rows[0];
@@ -437,15 +437,15 @@ export async function completeReset(
     }
     const passwordHash = await hashPassword(next);
     await c.query(
-      "UPDATE users SET password_hash=$2,must_change_password=false,password_changed_at=clock_timestamp(),authorization_version=authorization_version+1,updated_at=clock_timestamp(),version=version+1 WHERE id=$1",
+      "UPDATE users SET password_hash=$2,must_change_password=false,password_changed_at=private.security_now(),authorization_version=authorization_version+1,updated_at=private.security_now(),version=version+1 WHERE id=$1",
       [u.id, passwordHash],
     );
     await c.query(
-      "UPDATE credential_resets SET consumed_at=clock_timestamp() WHERE user_id=$1 AND consumed_at IS NULL",
+      "UPDATE credential_resets SET consumed_at=private.security_now() WHERE user_id=$1 AND consumed_at IS NULL",
       [u.id],
     );
     await c.query(
-      "UPDATE sessions SET revoked_at=clock_timestamp(),revocation_reason='PASSWORD_RESET' WHERE user_id=$1 AND revoked_at IS NULL",
+      "UPDATE sessions SET revoked_at=private.security_now(),revocation_reason='PASSWORD_RESET' WHERE user_id=$1 AND revoked_at IS NULL",
       [u.id],
     );
     await t.clearAccount();

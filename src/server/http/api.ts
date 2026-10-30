@@ -18,6 +18,9 @@ import {
 import * as employees from "../services/employees";
 import { scoped } from "../db";
 import * as mfa from "../auth/mfa";
+import * as dutyAuth from "../auth/duty";
+import * as duty from "../services/duty";
+import { requireDuty } from "../dal/duty";
 const idSchema = z.uuid();
 const noStore = { "Cache-Control": "private, no-store" };
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
@@ -139,6 +142,81 @@ export async function api(request: Request, path: string[]): Promise<Response> {
         ),
       });
     }
+    if (method === "GET" && key === "duty/context")
+      return json(await requireDuty(cookie(request, "libetario_duty")));
+    if (method === "GET" && key === "duty/access")
+      return json(
+        await dutyAuth.dutyBinding(cookie(request, "libetario_duty")),
+      );
+    if (
+      method === "POST" &&
+      [
+        "auth/duty/reauth",
+        "auth/duty/pin",
+        "auth/duty/totp",
+        "auth/duty/logout",
+      ].includes(key)
+    ) {
+      const { csrf: _challengeCsrf, ...factorInput } = body;
+      const b = z
+        .strictObject({
+          challenge: z
+            .string()
+            .regex(/^[a-f0-9]{64}$/)
+            .optional(),
+          binding: z.enum(["ACCOUNT", "DUTY"]).optional(),
+          code: z.string().max(32).optional(),
+        })
+        .parse(factorInput);
+      const bound = cookie(
+        request,
+        b.binding === "ACCOUNT" ? "libetario_session" : "libetario_duty",
+      );
+      if (!bound) throw new HttpError(401, mfa.AUTH_FAILURE);
+      if (key === "auth/duty/reauth" || key === "auth/duty/logout") {
+        assertCsrf(request, body.csrf, bound);
+        if (key === "auth/duty/logout") {
+          await dutyAuth.logoutDuty(bound);
+          return json({ ok: true }, 200, {
+            "Set-Cookie": cookieString("libetario_duty", "", 0),
+          });
+        }
+        return json(
+          await dutyAuth.startDuty(
+            bound,
+            undefined,
+            undefined,
+            true,
+            networkKey(request),
+          ),
+        );
+      }
+      if (!b.challenge || !b.code) throw new HttpError(401, mfa.AUTH_FAILURE);
+      assertCsrf(request, body.csrf, bound + ":" + b.challenge);
+      const result = await dutyAuth.completeDutyStage(
+        bound,
+        b.challenge,
+        key === "auth/duty/pin" ? "PIN" : "TOTP",
+        b.code,
+        networkKey(request),
+      );
+      if (result.kind === "CHALLENGE") return json(result);
+      const response = json({ ok: true });
+      response.headers.append(
+        "Set-Cookie",
+        cookieString("libetario_duty", result.token, result.maxAge),
+      );
+      if (result.account)
+        response.headers.append(
+          "Set-Cookie",
+          cookieString(
+            "libetario_session",
+            result.account.token,
+            result.account.maxAge,
+          ),
+        );
+      return response;
+    }
     const s = await session(
       cookie(request, "libetario_session"),
       key === "auth/change-password" ||
@@ -160,9 +238,15 @@ export async function api(request: Request, path: string[]): Promise<Response> {
       });
     if (method === "POST" && key === "auth/logout") {
       await logout(s);
-      return json({ ok: true }, 200, {
+      await dutyAuth.logoutDuty(cookie(request, "libetario_duty"));
+      const response = json({ ok: true }, 200, {
         "Set-Cookie": cookieString("libetario_session", "", 0),
       });
+      response.headers.append(
+        "Set-Cookie",
+        cookieString("libetario_duty", "", 0),
+      );
+      return response;
     }
     if (method === "POST" && key === "auth/change-password") {
       const b = z
@@ -242,11 +326,44 @@ export async function api(request: Request, path: string[]): Promise<Response> {
         403,
         "Complete authenticator verification or setup first",
       );
+    const query = new URL(request.url).searchParams;
+    if (method === "POST" && key === "auth/duty/start") {
+      const b = z
+        .strictObject({
+          date: z.iso.date(),
+          password: z.string().min(1).max(512),
+        })
+        .parse(input);
+      return json(
+        await dutyAuth.startDuty(
+          s.token,
+          b.date,
+          b.password,
+          false,
+          networkKey(request),
+        ),
+      );
+    }
+    if (method === "GET" && key === "duty/status")
+      return json(await duty.dutyStatus(s, query.get("date") ?? undefined));
     if (method === "GET" && key === "me")
       return json(await employees.employeeDetails(s, s.user_id));
     if (path[0] !== "admin") throw new HttpError(404, "Not found");
     if (s.role !== "ADMINISTRATOR")
       throw new HttpError(403, "Administrator access required");
+    if (method === "GET" && key === "admin/duty")
+      return json(
+        await duty.dutyDashboard(
+          s,
+          query.get("date") ?? undefined,
+          query.get("event") ?? undefined,
+          query.get("employee") ?? undefined,
+        ),
+      );
+    if (method === "POST" && key === "admin/duty")
+      return json(await duty.mutateDuty(s, input));
+    if (method === "POST" && key === "admin/settings/overnight")
+      return json(await employees.updateOvernight(s, input));
     if (key === "admin/employees" && method === "GET")
       return json(await employees.listEmployees(s));
     if (key === "admin/employees" && method === "POST")

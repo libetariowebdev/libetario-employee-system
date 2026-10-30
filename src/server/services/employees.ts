@@ -368,12 +368,10 @@ export async function updateSecurity(s: Session, input: unknown) {
     });
     if (current.id !== data.expectedPolicyId)
       throw new HttpError(409, "Security policy changed; reload before saving");
-    const configuration = securitySchema
-      .strict()
-      .parse({
-        ...(current.configuration as Record<string, unknown>),
-        ...data.configuration,
-      });
+    const configuration = securitySchema.strict().parse({
+      ...(current.configuration as Record<string, unknown>),
+      ...data.configuration,
+    });
     const p = await tx.policy_versions.create({
       data: {
         policy_key: "SECURITY",
@@ -386,6 +384,53 @@ export async function updateSecurity(s: Session, input: unknown) {
       where: { id: 1 },
       data: {
         security_policy_id: p.id,
+        version: { increment: 1 },
+        updated_at: new Date(),
+      },
+    });
+    return { ok: true };
+  });
+}
+export async function updateOvernight(s: Session, input: unknown) {
+  admin(s);
+  const b = z
+    .strictObject({
+      expectedPolicyId: z.uuid(),
+      overnightEnabled: z.boolean(),
+      overnightCarryHours: z.number().int().min(1).max(8),
+      reason: z.string().trim().min(10).max(500),
+    })
+    .parse(input);
+  return scoped(s.hash, async (tx) => {
+    await reason(tx, b.reason);
+    const recent = await tx.$queryRaw<
+      { allowed: boolean }[]
+    >`SELECT private.admin_recent() AS allowed`;
+    if (!recent[0].allowed)
+      throw new HttpError(403, "Recent administrator MFA required");
+    await tx.$queryRaw`SELECT id FROM company_settings WHERE id=1 FOR UPDATE`;
+    const current = await tx.policy_versions.findFirstOrThrow({
+      where: { policy_key: "WORK" },
+      orderBy: { revision: "desc" },
+    });
+    if (current.id !== b.expectedPolicyId)
+      throw new HttpError(409, "Work policy changed; reload before saving");
+    const p = await tx.policy_versions.create({
+      data: {
+        policy_key: "WORK",
+        revision: current.revision + 1,
+        created_by: s.user_id,
+        configuration: {
+          ...(current.configuration as Record<string, any>),
+          overnightEnabled: b.overnightEnabled,
+          overnightCarryHours: b.overnightCarryHours,
+        },
+      },
+    });
+    await tx.company_settings.update({
+      where: { id: 1 },
+      data: {
+        work_policy_id: p.id,
         version: { increment: 1 },
         updated_at: new Date(),
       },

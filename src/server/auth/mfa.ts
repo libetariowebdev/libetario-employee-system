@@ -112,7 +112,7 @@ async function confirmed(c: PoolClient, userId: string) {
     )
   ).rows[0];
 }
-async function consumeTotp(
+export async function consumeTotp(
   c: PoolClient,
   enrollment: Record<string, any> | undefined,
   code: string,
