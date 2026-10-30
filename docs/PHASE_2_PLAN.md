@@ -1,6 +1,19 @@
 # Phase 2 plan — Duty security
 
-Status: **PROPOSED — awaiting owner approval before implementation.** Prepared 30 October 2026, Asia/Manila.
+Status: **APPROVED with owner amendments below. Implement checkpoint 2a only, then stop for approval.** Prepared 30 October 2026, Asia/Manila.
+
+## Approved checkpoint split and superseding decisions
+
+The owner's latest approval supersedes any conflicting original proposal below.
+
+- **2a now:** environment keyring; mfa_enrollments, employee_pins and recovery_codes (three new tables; 15 application tables total); credential_resets/session/security-policy changes; mandatory administrator TOTP, enrollment, PIN management, recovery codes, self-service recovery enrollment, assisted authenticator reset, guarded operator recovery CLI and second-admin seed instructions. Staged administrator authentication uses short-lived, bound SETUP sessions; auth_challenges is not migrated yet. No duty capability is introduced. Deliver PHASE_2A_REPORT.md and wait.
+- **2b after approval:** duty_authorizations and auth_challenges (17 application tables total), duty login/sessions/reauthentication, bulk activation, overnight behavior and duty screens. Do not start Phase 3.
+- DUTY policy defaults are idle **30 minutes**, absolute until the grant's valid_until with a **12-hour maximum per session**. Same-grant reauthentication uses current TOTP plus PIN if enabled, without repeating the password flow. ACCOUNT stays 15-minute idle/60-minute absolute. In 2a, implement/test policy validation and expiry calculation only; actual DUTY/HTTP behavior is gated to 2b.
+- Password + single-use recovery code immediately revokes the old authenticator and codes, increments account authorization_version, revokes every old session and issues enrollment-only SETUP. The user may enroll a new generation themselves; no administrator approval is required for this path. Administrator/full account privileges are issued only after the new authenticator is confirmed. Assisted reset remains for loss of both authenticator and codes.
+- Provide a script using server access and migration credentials only, with an exact typed confirmation prompt and mandatory verification note/reason, to reset an administrator authenticator. It refuses production/non-local targets unless --allow-production is explicitly supplied. No request handler imports or exposes operator code. The audit identifies the operator rather than impersonating the affected administrator.
+- Document separately backed-up MFA encryption keyrings, recovery after complete key loss, rotation retaining old keys until all retained ciphertext is handled, and second administrator provisioning. Losing every usable key requires every affected user to re-enroll; there is no decryption fallback.
+
+These amendments replace the original RECOVERY_REQUIRED suspension/assistance-only recovery path and the original DUTY 15/60 session limits. Recovery uses SETUP, not a privileged recovery scope. Historical detailed sections below remain the original design reference where consistent with this addendum.
 
 Phase 1 is owner-verified and accepted. Source: BLUEPRINT.md Sections 5, 14 and 15, the accepted Phase 1 foundation, and the owner's Phase 2 decisions. This document proposes Phase 2 only. No Phase 2 application code, dependencies, migrations or database changes have been made.
 

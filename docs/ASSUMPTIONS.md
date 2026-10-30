@@ -1,6 +1,24 @@
 # Configurable policy defaults and open decisions
 
-Status: Phase 1 accepted by the owner. The Phase 2 decisions below are confirmed where explicitly stated; additional Phase 2 implementation defaults are proposed pending approval of PHASE_2_PLAN.md. No Phase 2 code or migrations have been implemented. These are software safeguards, not a determination of employment classification or payroll compliance.
+Status: Phase 1 accepted; Phase 2 approved with the checkpoint amendments below. Implement 2a only and stop for owner approval before 2b. These are software safeguards, not a determination of employment classification or payroll compliance.
+
+## Latest approved Phase 2 amendments (supersede earlier proposals below)
+
+| Area | Approved behavior |
+| --- | --- |
+| 2a boundary | Three new tables only: mfa_enrollments, employee_pins, recovery_codes. Extend sessions, credential_resets, policy and RLS helpers; 15 application tables total. Administrator staging uses a five-minute SETUP session bound to the user/session/generation. No duty authorization/challenge table, DUTY session, duty screen, clock-in or paid time yet. |
+| 2b gate | Only after approval of PHASE_2A_REPORT.md: duty_authorizations and auth_challenges, for 17 application tables total. No Phase 3 work. |
+| ACCOUNT / SETUP | ACCOUNT idle 15 min/absolute 60 min unchanged. SETUP absolute five minutes, no sliding extension and no administrator privileges. Confirming a new authenticator permits a rotated MFA-verified ACCOUNT session; stale setup cookies are revoked. |
+| DUTY policy (2b) | Separate dutyIdleMinutes=30 and dutyMaxHours=12 (configurable, never above 12), capped by valid_until. Same-grant reauthentication needs current TOTP plus PIN if enabled; no repeat password. Policy/expiry unit tests in 2a; real duty-session/HTTP tests in 2b. |
+| Self-service recovery | Password + one unused hashed recovery code atomically revokes old enrollment/codes, increments account authorization_version, revokes all sessions and authorizes enrollment-only SETUP. User enrolls a new generation with new recovery codes. No administrator/DUTY privileges before new TOTP confirmation. Old factor is REVOKED, not suspended. Expired/lost recovery setup requires assisted reset because old capabilities are already revoked. |
+| Assisted reset | Different MFA-authenticated administrator, recent TOTP, verification note and reason (10–500 chars each), private single-use 15-minute token. Target proves password + token, enrolls anew. Still supported when both authenticator and codes are lost. |
+| Last administrator | Operator-only CLI using migration credentials; prints target/action, requires exact typed confirmation plus note/reason, audits operator/source/target. Production, remote or unrecognized database targets require --allow-production. No HTTP entry point or imports from request code. This resets MFA only, not the password, role or enabled status. |
+| Second administrator | Local seed mode creates one additional administrator with a generated temporary password, mandatory password change and MFA onboarding. It requires explicit invocation, refuses production/remote targets, and never alters existing credentials. |
+| Key backup/loss | Back up the entire usable MFA keyring separately from the database, under separate access control. DB backup alone cannot restore encrypted factors. Total key loss forces all affected users to re-enroll via recovery/assistance/operator reset; never silently generate replacement keys over existing configuration. |
+| Key rotation | Add a fresh 32-byte key under a new ID, retain old keys, select new active key, re-encrypt existing active/pending records with fresh nonces without changing generations/replay counters, verify, then retire old IDs only when no retained ciphertext/backup needs them. Rotation is operator-only and audited; secrets are not printed. |
+| Defaults unchanged | PIN is fully built but SECURITY.pinEnabled=false; mandatory admin TOTP; overnight disabled with configurable eight-hour carry ceiling when enabled; local-only hosting. |
+
+Earlier Phase 2 rows/flows below are the original proposal where not superseded by this approved amendment table. In particular, the old assistance-only recovery and 15/60 DUTY rows do not apply.
 
 ## Approved Phase 1 boundary
 
