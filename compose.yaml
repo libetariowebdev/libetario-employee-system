@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:18
+    ports: ["127.0.0.1:55432:5432"]
+    environment:
+      POSTGRES_USER: libetario_migrator
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?Set a local migration password}
+      POSTGRES_DB: libetario
+    volumes: ["libetario_data:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U libetario_migrator -d libetario"]
+      interval: 5s
+      retries: 10
+volumes:
+  libetario_data:

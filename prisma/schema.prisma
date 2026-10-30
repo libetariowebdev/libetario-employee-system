@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model audit_log {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_user_id String?   @db.Uuid
+  session_id    String?   @db.Uuid
+  action        String
+  occurred_at   DateTime  @default(now()) @db.Timestamptz(6)
+  request_id    String
+  payload       Json
+  users         users?    @relation(fields: [actor_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sessions      sessions? @relation(fields: [session_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([actor_user_id, occurred_at])
+  @@index([session_id])
+}
+
+model auth_events {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String?   @db.Uuid
+  session_id     String?   @db.Uuid
+  event_type     String
+  outcome        String
+  subject_digest String?
+  network_digest String?
+  occurred_at    DateTime  @default(now()) @db.Timestamptz(6)
+  metadata       Json      @default("{}")
+  sessions       sessions? @relation(fields: [session_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users          users?    @relation(fields: [user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([session_id])
+  @@index([user_id, occurred_at])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model company_settings {
+  id                                                                   Int             @id @default(1)
+  company_name                                                         String
+  timezone                                                             String          @default("Asia/Manila")
+  currency                                                             String          @default("PHP")
+  security_policy_id                                                   String          @db.Uuid
+  work_policy_id                                                       String          @db.Uuid
+  pay_policy_id                                                        String          @db.Uuid
+  updated_at                                                           DateTime        @default(now()) @db.Timestamptz(6)
+  version                                                              Int             @default(1)
+  policy_versions_company_settings_pay_policy_idTopolicy_versions      policy_versions @relation("company_settings_pay_policy_idTopolicy_versions", fields: [pay_policy_id], references: [id], onUpdate: NoAction)
+  policy_versions_company_settings_security_policy_idTopolicy_versions policy_versions @relation("company_settings_security_policy_idTopolicy_versions", fields: [security_policy_id], references: [id], onUpdate: NoAction)
+  policy_versions_company_settings_work_policy_idTopolicy_versions     policy_versions @relation("company_settings_work_policy_idTopolicy_versions", fields: [work_policy_id], references: [id], onUpdate: NoAction)
+
+  @@index([pay_policy_id])
+  @@index([security_policy_id])
+  @@index([work_policy_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model credential_resets {
+  id                                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                     String    @db.Uuid
+  requested_by                                String    @db.Uuid
+  kind                                        String    @default("PASSWORD")
+  verification_note                           String
+  token_hash                                  String    @unique
+  expires_at                                  DateTime  @db.Timestamptz(6)
+  consumed_at                                 DateTime? @db.Timestamptz(6)
+  created_at                                  DateTime  @default(now()) @db.Timestamptz(6)
+  users_credential_resets_requested_byTousers users     @relation("credential_resets_requested_byTousers", fields: [requested_by], references: [id], onUpdate: NoAction)
+  users_credential_resets_user_idTousers      users     @relation("credential_resets_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([requested_by])
+  @@index([user_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model employee_profiles {
+  user_id                   String                      @id @db.Uuid
+  employee_number           String                      @unique
+  legal_name                String
+  display_name              String
+  contact                   String?
+  designation               String
+  start_date                DateTime                    @db.Date
+  employment_status         EmploymentStatus            @default(ACTIVE)
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  version                   Int                         @default(1)
+  users                     users                       @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  employee_rate_history     employee_rate_history[]
+  employee_schedule_history employee_schedule_history[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model employee_rate_history {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id            String            @db.Uuid
+  basis                  RateBasis
+  amount                 Decimal           @db.Decimal(18, 4)
+  currency               String            @default("PHP")
+  effective_from         DateTime          @db.Date
+  effective_to           DateTime?         @db.Date
+  expected_daily_seconds Int
+  pay_policy_id          String            @db.Uuid
+  created_by             String            @db.Uuid
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
+  version                Int               @default(1)
+  users                  users             @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  employee_profiles      employee_profiles @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
+  policy_versions        policy_versions   @relation(fields: [pay_policy_id], references: [id], onUpdate: NoAction)
+
+  @@unique([employee_id, effective_from])
+  @@index([created_by])
+  @@index([pay_policy_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model employee_schedule_days {
+  schedule_id               String                    @db.Uuid
+  weekday                   Int
+  working_day               Boolean
+  start_local               DateTime?                 @db.Time(6)
+  end_local                 DateTime?                 @db.Time(6)
+  ends_next_day             Boolean                   @default(false)
+  paid_break_seconds        Int                       @default(0)
+  unpaid_break_seconds      Int                       @default(0)
+  employee_schedule_history employee_schedule_history @relation(fields: [schedule_id], references: [id], onUpdate: NoAction)
+
+  @@id([schedule_id, weekday])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+model employee_schedule_history {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id            String                   @db.Uuid
+  effective_from         DateTime                 @db.Date
+  effective_to           DateTime?                @db.Date
+  expected_daily_seconds Int
+  work_policy_id         String                   @db.Uuid
+  created_by             String                   @db.Uuid
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  version                Int                      @default(1)
+  employee_schedule_days employee_schedule_days[]
+  users                  users                    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  employee_profiles      employee_profiles        @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
+  policy_versions        policy_versions          @relation(fields: [work_policy_id], references: [id], onUpdate: NoAction)
+
+  @@unique([employee_id, effective_from])
+  @@index([created_by])
+  @@index([work_policy_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model policy_versions {
+  id                                                                    String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  policy_key                                                            String
+  revision                                                              Int
+  configuration                                                         Json
+  created_by                                                            String                      @db.Uuid
+  created_at                                                            DateTime                    @default(now()) @db.Timestamptz(6)
+  company_settings_company_settings_pay_policy_idTopolicy_versions      company_settings[]          @relation("company_settings_pay_policy_idTopolicy_versions")
+  company_settings_company_settings_security_policy_idTopolicy_versions company_settings[]          @relation("company_settings_security_policy_idTopolicy_versions")
+  company_settings_company_settings_work_policy_idTopolicy_versions     company_settings[]          @relation("company_settings_work_policy_idTopolicy_versions")
+  employee_rate_history                                                 employee_rate_history[]
+  employee_schedule_history                                             employee_schedule_history[]
+  users                                                                 users                       @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+
+  @@unique([policy_key, revision])
+  @@index([created_by])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model security_throttles {
+  scope             String
+  subject_digest    String
+  window_started_at DateTime  @default(now()) @db.Timestamptz(6)
+  failure_count     Int       @default(0)
+  locked_until      DateTime? @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@id([scope, subject_digest])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sessions {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String        @db.Uuid
+  token_hash            String        @unique
+  csrf_token_hash       String
+  scope                 String        @default("ACCOUNT")
+  authorization_version Int
+  created_at            DateTime      @default(now()) @db.Timestamptz(6)
+  last_seen_at          DateTime      @default(now()) @db.Timestamptz(6)
+  idle_expires_at       DateTime      @db.Timestamptz(6)
+  absolute_expires_at   DateTime      @db.Timestamptz(6)
+  revoked_at            DateTime?     @db.Timestamptz(6)
+  revocation_reason     String?
+  audit_log             audit_log[]
+  auth_events           auth_events[]
+  users                 users         @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([absolute_expires_at])
+  @@index([user_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                                                      String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                                   String                      @unique
+  username                                                String                      @unique
+  password_hash                                           String
+  role                                                    Role                        @default(EMPLOYEE)
+  disabled_at                                             DateTime?                   @db.Timestamptz(6)
+  must_change_password                                    Boolean                     @default(true)
+  authorization_version                                   Int                         @default(1)
+  password_changed_at                                     DateTime                    @default(now()) @db.Timestamptz(6)
+  created_at                                              DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                                              DateTime                    @default(now()) @db.Timestamptz(6)
+  version                                                 Int                         @default(1)
+  audit_log                                               audit_log[]
+  auth_events                                             auth_events[]
+  credential_resets_credential_resets_requested_byTousers credential_resets[]         @relation("credential_resets_requested_byTousers")
+  credential_resets_credential_resets_user_idTousers      credential_resets[]         @relation("credential_resets_user_idTousers")
+  employee_profiles                                       employee_profiles?
+  employee_rate_history                                   employee_rate_history[]
+  employee_schedule_history                               employee_schedule_history[]
+  policy_versions                                         policy_versions[]
+  sessions                                                sessions[]
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum RateBasis {
+  DAILY
+  HOURLY
+}
+
+enum Role {
+  ADMINISTRATOR
+  EMPLOYEE
+}
