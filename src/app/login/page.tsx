@@ -26,7 +26,7 @@ export default function Login() {
         </div>
         <div className="auth-footer">
           <ShieldCheck size={17} /> Private team workspace{" "}
-          <span>2A / ACCOUNT SECURITY</span>
+          <span>2B / DUTY SECURITY</span>
         </div>
       </section>
       <section className="auth-panel">
@@ -47,8 +47,9 @@ export default function Login() {
           <div className="auth-note">
             <ShieldCheck size={18} />
             <p>
-              Account access only. Duty authorization and secure duty sign-in
-              will be available in checkpoint 2b.
+              Account sign-in opens your workspace. Secure duty sign-in requires
+              administrator activation and your authenticator. Login records no
+              paid time.
             </p>
           </div>
         </div>

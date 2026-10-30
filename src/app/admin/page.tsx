@@ -148,9 +148,9 @@ export default async function AdminHome() {
         <div>
           <strong>A secure start.</strong>
           <p>
-            Profile access is available now. Duty, projects, attendance and
-            payroll open in later phases. Account login does not record paid
-            time.
+            Profile and secure duty access are available now. Projects,
+            attendance and payroll open in later phases. Account login does not
+            record paid time.
           </p>
         </div>
         <span className="mono">{businessDate(new Date())}</span>

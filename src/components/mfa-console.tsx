@@ -234,9 +234,8 @@ export function MfaConsole({
               </h2>
               <p className="small muted">
                 PIN duty enforcement is{" "}
-                {status.pinEnabled ? "enabled" : "disabled by default"}. Duty
-                login arrives in checkpoint 2b. A forgotten PIN can be replaced
-                with your password and fresh TOTP.
+                {status.pinEnabled ? "enabled" : "disabled by default"}. A
+                forgotten PIN can be replaced with your password and fresh TOTP.
               </p>
               <PasswordInput />
               <CodeInput />

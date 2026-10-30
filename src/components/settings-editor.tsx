@@ -17,8 +17,8 @@ const labels: Partial<Record<keyof Security, string>> = {
   recoveryNetworkLimit: "Recovery network threshold",
   setupMinutes: "Setup lifetime (minutes)",
   sensitiveReauthMinutes: "Sensitive action MFA age (minutes)",
-  dutyIdleMinutes: "Future duty idle timeout (2b)",
-  dutyMaxHours: "Future duty maximum hours (2b)",
+  dutyIdleMinutes: "Duty idle timeout (minutes)",
+  dutyMaxHours: "Duty maximum session hours",
 };
 export function SettingsEditor({
   csrf,

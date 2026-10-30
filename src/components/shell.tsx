@@ -66,11 +66,11 @@ export function Shell({
             <ShieldCheck size={18} />
             Account security
           </Link>
-          <p className="nav-label later-label">COMING IN LATER PHASES</p>
-          <span className="nav-disabled">
+          <Link href={admin ? "/admin/duty" : "/duty"}>
             <ShieldCheck size={18} />
-            Duty access <small>02</small>
-          </span>
+            Duty access
+          </Link>
+          <p className="nav-label later-label">COMING IN LATER PHASES</p>
           <span className="nav-disabled">
             <FileText size={18} />
             Projects & tasks <small>03</small>
@@ -88,7 +88,7 @@ export function Shell({
           <div className="phase-label">
             <span>ACCOUNT SECURITY</span>
             <span>
-              PHASE 2A <ArrowUpRight size={12} />
+              PHASE 2B <ArrowUpRight size={12} />
             </span>
           </div>
           <p>
@@ -113,7 +113,7 @@ export function Shell({
           </span>
           <div>
             <span className="timezone">Asia/Manila</span>
-            <span className="pill">PHASE 1</span>
+            <span className="pill">PHASE 2B</span>
             <span className="avatar small-avatar">
               {name.slice(0, 1).toUpperCase()}
             </span>
@@ -122,7 +122,7 @@ export function Shell({
         <main className="content">{children}</main>
         <footer className="workspace-footer">
           Libetario Digital Marketing Services
-          <span>Private workspace · Foundation release</span>
+          <span>Private workspace · Duty security</span>
         </footer>
       </div>
     </div>

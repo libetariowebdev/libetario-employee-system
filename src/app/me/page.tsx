@@ -87,16 +87,18 @@ export default async function MyOverview() {
           <span className="stat-icon">
             <ShieldCheck size={24} />
           </span>
-          <span className="pill">AVAILABLE IN PHASE 2</span>
+          <Link className="pill" href="/duty">
+            OPEN DUTY ACCESS →
+          </Link>
           <h2>
             Your working day,
             <br />
             securely authorized.
           </h2>
           <p className="muted">
-            Daily duty activation, authenticator sign-in and work tools are
-            coming in the next phases. Signing in now does not clock you in or
-            record paid time.
+            View your authorization and complete secure sign-in from Duty
+            access. Work tools and attendance arrive in later phases. Signing in
+            does not clock you in or record paid time.
           </p>
         </section>
       </div>
