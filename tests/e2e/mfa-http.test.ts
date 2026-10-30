@@ -328,7 +328,7 @@ test("HTTP TOTP lockout survives new SETUP cookies and expired capabilities are 
   );
 });
 
-test("HTTP MFA mutations enforce CSRF and operator/duty handlers are absent", async () => {
+test("HTTP MFA mutations enforce CSRF and operator/unsupported login handlers are absent", async () => {
   const f = await fresh(),
     cookie = await signIn(f, "a"),
     s = await state(cookie);

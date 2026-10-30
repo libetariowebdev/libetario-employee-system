@@ -20,7 +20,7 @@
     "mfa:init-keys": "tsx scripts/init-mfa-keys.ts",
     "mfa:reset-admin": "tsx scripts/reset-admin-mfa.ts",
     "mfa:rotate-keys": "tsx scripts/rotate-mfa-keys.ts",
-    "test:http": "tsx --test --test-concurrency=1 tests/e2e/*.test.ts"
+    "test:http": "node --conditions=react-server --import tsx --test --test-concurrency=1 tests/e2e/*.test.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
