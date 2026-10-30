@@ -23,7 +23,7 @@ export const securitySchema = z
     (p) => p.idleMinutes <= p.absoluteMinutes,
     "Idle timeout exceeds absolute timeout",
   );
-// Policy calculation only in 2a. No DUTY session can be issued until 2b.
+// Used by duty issuance; grant validity is rechecked inside the locked transaction.
 export function dutySessionExpiry(
   now: Date,
   validUntil: Date,

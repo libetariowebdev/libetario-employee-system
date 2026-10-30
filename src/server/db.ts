@@ -10,11 +10,16 @@ const globalDb = globalThis as unknown as {
   authPool?: pg.Pool;
 };
 export const db = (globalDb.runtime ??= new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 8 }),
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    max: 8,
+    options: "-c timezone=UTC",
+  }),
 }));
 // Authentication authority has a separate narrowly granted database role.
 export const authPool = (globalDb.authPool ??= new pg.Pool({
   connectionString: process.env.AUTH_DATABASE_URL,
+  options: "-c timezone=UTC",
   max: 5,
 }));
 export async function scoped<T>(

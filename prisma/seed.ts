@@ -69,6 +69,7 @@ async function seed() {
         pinEnabled: false,
         breaksPaid: true,
         overnightEnabled: false,
+        overnightCarryHours: 8,
         clockOutTimer: "CLOSE",
         maxShiftHours: 16,
       },
