@@ -52,6 +52,7 @@ model company_settings {
   pay_policy_id                                                        String          @db.Uuid
   updated_at                                                           DateTime        @default(now()) @db.Timestamptz(6)
   version                                                              Int             @default(1)
+  upload_validation_key_hash                                           String?
   policy_versions_company_settings_pay_policy_idTopolicy_versions      policy_versions @relation("company_settings_pay_policy_idTopolicy_versions", fields: [pay_policy_id], references: [id], onUpdate: NoAction)
   policy_versions_company_settings_security_policy_idTopolicy_versions policy_versions @relation("company_settings_security_policy_idTopolicy_versions", fields: [security_policy_id], references: [id], onUpdate: NoAction)
   policy_versions_company_settings_work_policy_idTopolicy_versions     policy_versions @relation("company_settings_work_policy_idTopolicy_versions", fields: [work_policy_id], references: [id], onUpdate: NoAction)
@@ -189,6 +190,7 @@ model policy_versions {
   duty_authorizations                                                   duty_authorizations[]
   employee_rate_history                                                 employee_rate_history[]
   employee_schedule_history                                             employee_schedule_history[]
+  file_objects                                                          file_objects[]
   users                                                                 users                       @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   sessions                                                              sessions[]
 
@@ -237,6 +239,7 @@ model sessions {
   audit_log                                                                audit_log[]
   auth_challenges                                                          auth_challenges[]
   auth_events                                                              auth_events[]
+  file_objects                                                             file_objects[]
   mfa_enrollments_mfa_enrollments_enrollment_session_id_user_idTosessions  mfa_enrollments[]     @relation("mfa_enrollments_enrollment_session_id_user_idTosessions")
   duty_authorizations                                                      duty_authorizations? @relation(fields: [duty_id, user_id], references: [id, employee_id], onUpdate: NoAction, map: "session_duty_owner")
   credential_resets                                                        credential_resets?   @relation(fields: [reset_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "session_reset_owner")
@@ -279,15 +282,22 @@ model users {
   employee_profiles                                          employee_profiles?
   employee_rate_history                                      employee_rate_history[]
   employee_schedule_history                                  employee_schedule_history[]
+  file_objects                                               file_objects[]
   mfa_enrollments                                            mfa_enrollments[]
   policy_versions                                            policy_versions[]
+  project_files                                              project_files[]
   projects_projects_created_byTousers                        projects[]                  @relation("projects_created_byTousers")
   projects_projects_status_changed_byTousers                 projects[]                  @relation("projects_status_changed_byTousers")
   sessions                                                   sessions[]
+  submission_files_submission_files_excluded_byTousers       submission_files[]          @relation("submission_files_excluded_byTousers")
+  submission_files_submission_files_linked_byTousers         submission_files[]          @relation("submission_files_linked_byTousers")
   task_assignments_task_assignments_access_revoked_byTousers task_assignments[]          @relation("task_assignments_access_revoked_byTousers")
   task_assignments_task_assignments_assigned_byTousers       task_assignments[]          @relation("task_assignments_assigned_byTousers")
   task_assignments_task_assignments_status_changed_byTousers task_assignments[]          @relation("task_assignments_status_changed_byTousers")
   task_comments                                              task_comments[]
+  task_files                                                 task_files[]
+  task_reviews                                               task_reviews[]
+  task_submissions                                           task_submissions[]
   tasks_tasks_created_byTousers                              tasks[]                     @relation("tasks_created_byTousers")
   tasks_tasks_status_changed_byTousers                       tasks[]                     @relation("tasks_status_changed_byTousers")
 }
@@ -440,27 +450,29 @@ model duty_authorizations {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model projects {
-  id                                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code                                    String    @unique
+  id                                      String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                                    String          @unique
   name                                    String
   client_label                            String?
   website_url                             String?
-  description                             String    @default("")
-  reference_links                         Json      @default("[]")
-  start_date                              DateTime? @db.Date
-  deadline_at                             DateTime? @db.Timestamptz(6)
-  priority                                String    @default("NORMAL")
-  status                                  String    @default("ACTIVE")
-  created_by                              String    @db.Uuid
-  status_changed_by                       String    @db.Uuid
-  status_changed_at                       DateTime  @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  created_at                              DateTime  @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  updated_at                              DateTime  @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  version                                 Int       @default(1)
-  creation_key                            String    @db.Uuid
+  description                             String          @default("")
+  reference_links                         Json            @default("[]")
+  start_date                              DateTime?       @db.Date
+  deadline_at                             DateTime?       @db.Timestamptz(6)
+  priority                                String          @default("NORMAL")
+  status                                  String          @default("ACTIVE")
+  created_by                              String          @db.Uuid
+  status_changed_by                       String          @db.Uuid
+  status_changed_at                       DateTime        @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  created_at                              DateTime        @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                              DateTime        @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                 Int             @default(1)
+  creation_key                            String          @db.Uuid
   creation_fingerprint                    String
-  users_projects_created_byTousers        users     @relation("projects_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
-  users_projects_status_changed_byTousers users     @relation("projects_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
+  file_objects                            file_objects[]
+  project_files                           project_files[]
+  users_projects_created_byTousers        users           @relation("projects_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  users_projects_status_changed_byTousers users           @relation("projects_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
   tasks                                   tasks[]
 
   @@unique([created_by, creation_key])
@@ -472,31 +484,35 @@ model projects {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model task_assignments {
-  id                                              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  task_id                                         String            @db.Uuid
-  employee_id                                     String            @db.Uuid
-  assigned_by                                     String            @db.Uuid
-  assigned_at                                     DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  assignment_origin                               String
-  status                                          String            @default("PENDING")
-  status_changed_by                               String            @db.Uuid
-  status_changed_at                               DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  counts_for_completion                           Boolean           @default(true)
-  access_revoked_at                               DateTime?         @db.Timestamptz(6)
-  access_revoked_by                               String?           @db.Uuid
-  revocation_reason                               String?
-  created_at                                      DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  updated_at                                      DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  version                                         Int               @default(1)
-  last_list_seen_at                               DateTime?         @db.Timestamptz(6)
-  seen_task_version                               Int               @default(0)
-  seen_project_version                            Int               @default(0)
-  seen_assignment_version                         Int               @default(0)
-  users_task_assignments_access_revoked_byTousers users?            @relation("task_assignments_access_revoked_byTousers", fields: [access_revoked_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  users_task_assignments_assigned_byTousers       users             @relation("task_assignments_assigned_byTousers", fields: [assigned_by], references: [id], onUpdate: NoAction)
-  employee_profiles                               employee_profiles @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
-  users_task_assignments_status_changed_byTousers users             @relation("task_assignments_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
-  tasks                                           tasks             @relation(fields: [task_id], references: [id], onUpdate: NoAction)
+  id                                                                           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id                                                                      String            @db.Uuid
+  employee_id                                                                  String            @db.Uuid
+  assigned_by                                                                  String            @db.Uuid
+  assigned_at                                                                  DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  assignment_origin                                                            String
+  status                                                                       String            @default("PENDING")
+  status_changed_by                                                            String            @db.Uuid
+  status_changed_at                                                            DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  counts_for_completion                                                        Boolean           @default(true)
+  access_revoked_at                                                            DateTime?         @db.Timestamptz(6)
+  access_revoked_by                                                            String?           @db.Uuid
+  revocation_reason                                                            String?
+  created_at                                                                   DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                                                                   DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                                                      Int               @default(1)
+  last_list_seen_at                                                            DateTime?         @db.Timestamptz(6)
+  seen_task_version                                                            Int               @default(0)
+  seen_project_version                                                         Int               @default(0)
+  seen_assignment_version                                                      Int               @default(0)
+  current_submission_id                                                        String?           @db.Uuid
+  task_submissions_task_assignments_current_submission_id_idTotask_submissions task_submissions? @relation("task_assignments_current_submission_id_idTotask_submissions", fields: [current_submission_id, id], references: [id, assignment_id], onUpdate: NoAction, map: "assignment_submission_owner")
+  users_task_assignments_access_revoked_byTousers                              users?            @relation("task_assignments_access_revoked_byTousers", fields: [access_revoked_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users_task_assignments_assigned_byTousers                                    users             @relation("task_assignments_assigned_byTousers", fields: [assigned_by], references: [id], onUpdate: NoAction)
+  employee_profiles                                                            employee_profiles @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
+  users_task_assignments_status_changed_byTousers                              users             @relation("task_assignments_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
+  tasks                                                                        tasks             @relation(fields: [task_id], references: [id], onUpdate: NoAction)
+  task_submissions_task_submissions_assignment_id_created_byTotask_assignments task_submissions[] @relation("task_submissions_assignment_id_created_byTotask_assignments")
+  task_submissions_task_submissions_assignment_idTotask_assignments            task_submissions[] @relation("task_submissions_assignment_idTotask_assignments")
 
   @@unique([id, employee_id])
   @@unique([id, task_id])
@@ -505,6 +521,7 @@ model task_assignments {
   @@index([assigned_by])
   @@index([employee_id, access_revoked_at, task_id])
   @@index([status_changed_by])
+  @@index([current_submission_id])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -550,6 +567,7 @@ model tasks {
   creation_fingerprint                 String
   task_assignments                     task_assignments[]
   task_comments                        task_comments[]
+  task_files                           task_files[]
   users_tasks_created_byTousers        users              @relation("tasks_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
   projects                             projects           @relation(fields: [project_id], references: [id], onUpdate: NoAction)
   users_tasks_status_changed_byTousers users              @relation("tasks_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
@@ -558,6 +576,136 @@ model tasks {
   @@index([created_by])
   @@index([project_id, status, due_at])
   @@index([status_changed_by])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model file_objects {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storage_key          String            @unique
+  display_name         String
+  declared_media_type  String
+  detected_media_type  String?
+  reserved_bytes       BigInt
+  size_bytes           BigInt?
+  sha256               String?
+  project_id           String            @db.Uuid
+  uploaded_by          String            @db.Uuid
+  upload_session_id    String            @db.Uuid
+  membership_version   Int?
+  state                String            @default("QUARANTINED")
+  validation_policy_id String            @db.Uuid
+  created_at           DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  upload_completed_at  DateTime?         @db.Timestamptz(6)
+  validated_at         DateTime?         @db.Timestamptz(6)
+  validation_outcome   String?
+  validation_version   Int               @default(1)
+  bytes_deleted_at     DateTime?         @db.Timestamptz(6)
+  projects             projects          @relation(fields: [project_id], references: [id], onUpdate: NoAction)
+  sessions             sessions          @relation(fields: [upload_session_id, uploaded_by], references: [id, user_id], onUpdate: NoAction)
+  users                users             @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
+  policy_versions      policy_versions   @relation(fields: [validation_policy_id], references: [id], onUpdate: NoAction)
+  project_files        project_files?
+  submission_files     submission_files?
+  task_files           task_files?
+
+  @@index([project_id])
+  @@index([state, created_at])
+  @@index([upload_session_id])
+  @@index([uploaded_by, created_at])
+  @@index([validation_policy_id])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model project_files {
+  project_id   String       @db.Uuid
+  file_id      String       @unique @db.Uuid
+  linked_by    String       @db.Uuid
+  linked_at    DateTime     @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  file_objects file_objects @relation(fields: [file_id], references: [id], onUpdate: NoAction)
+  users        users        @relation(fields: [linked_by], references: [id], onUpdate: NoAction)
+  projects     projects     @relation(fields: [project_id], references: [id], onUpdate: NoAction)
+
+  @@id([project_id, file_id])
+  @@index([linked_by])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model submission_files {
+  submission_id                             String           @db.Uuid
+  file_id                                   String           @unique @db.Uuid
+  linked_by                                 String           @db.Uuid
+  linked_at                                 DateTime         @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  excluded_at                               DateTime?        @db.Timestamptz(6)
+  excluded_by                               String?          @db.Uuid
+  users_submission_files_excluded_byTousers users?           @relation("submission_files_excluded_byTousers", fields: [excluded_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  file_objects                              file_objects     @relation(fields: [file_id], references: [id], onUpdate: NoAction)
+  users_submission_files_linked_byTousers   users            @relation("submission_files_linked_byTousers", fields: [linked_by], references: [id], onUpdate: NoAction)
+  task_submissions                          task_submissions @relation(fields: [submission_id], references: [id], onUpdate: NoAction)
+
+  @@id([submission_id, file_id])
+  @@index([excluded_by])
+  @@index([linked_by])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_files {
+  task_id      String       @db.Uuid
+  file_id      String       @unique @db.Uuid
+  linked_by    String       @db.Uuid
+  linked_at    DateTime     @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  file_objects file_objects @relation(fields: [file_id], references: [id], onUpdate: NoAction)
+  users        users        @relation(fields: [linked_by], references: [id], onUpdate: NoAction)
+  tasks        tasks        @relation(fields: [task_id], references: [id], onUpdate: NoAction)
+
+  @@id([task_id, file_id])
+  @@index([linked_by])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_reviews {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id    String           @unique @db.Uuid
+  reviewer_id      String           @db.Uuid
+  decision         String
+  reason           String           @default("")
+  reviewed_at      DateTime         @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  users            users            @relation(fields: [reviewer_id], references: [id], onUpdate: NoAction)
+  task_submissions task_submissions @relation(fields: [submission_id], references: [id], onUpdate: NoAction)
+
+  @@index([reviewer_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model task_submissions {
+  id                                                                           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assignment_id                                                                String @db.Uuid
+  revision_number                                                              Int
+  state                                                                        String             @default("DRAFT")
+  notes                                                                        String             @default("")
+  urls                                                                         Json               @default("[]")
+  created_by                                                                   String             @db.Uuid
+  created_at                                                                   DateTime           @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                                                                   DateTime           @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                                                      Int                @default(1)
+  submitted_at                                                                 DateTime?          @db.Timestamptz(6)
+  creation_key                                                                 String             @db.Uuid
+  creation_fingerprint                                                         String
+  submission_files                                                             submission_files[]
+  task_assignments_task_assignments_current_submission_id_idTotask_submissions task_assignments[]  @relation("task_assignments_current_submission_id_idTotask_submissions")
+  task_reviews                                                                 task_reviews?
+  task_assignments_task_submissions_assignment_id_created_byTotask_assignments task_assignments   @relation("task_submissions_assignment_id_created_byTotask_assignments", fields: [assignment_id, created_by], references: [id, employee_id], onUpdate: NoAction, map: "submission_employee_owner")
+  task_assignments_task_submissions_assignment_idTotask_assignments            task_assignments   @relation("task_submissions_assignment_idTotask_assignments", fields: [assignment_id], references: [id], onUpdate: NoAction)
+  users                                                                        users              @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+
+  @@unique([assignment_id, revision_number])
+  @@unique([created_by, creation_key])
+  @@unique([id, assignment_id])
+  @@index([created_by])
+  @@index([state, submitted_at])
 }
 
 enum EmploymentStatus {
