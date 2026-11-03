@@ -32,6 +32,7 @@ export default async function ContextPage() {
         </p>
         <a href="/duty/reauth">Reauthenticate same grant</a>
         <a href="/duty">Duty status & sign-in</a>
+        <a href="/work/tasks">Open my assigned tasks →</a>
         <a href="/me">← Account workspace</a>
         <DutyLogout csrf={csrfForSession(token!)} />
       </section>

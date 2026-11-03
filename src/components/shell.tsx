@@ -9,16 +9,19 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { Logout } from "./forms";
+import { DutyLogout } from "./duty-console";
 export function Shell({
   admin,
   csrf,
   name,
   children,
+  duty = false,
 }: {
   admin: boolean;
   csrf: string;
   name: string;
   children: React.ReactNode;
+  duty?: boolean;
 }) {
   return (
     <div className="workspace">
@@ -70,11 +73,20 @@ export function Shell({
             <ShieldCheck size={18} />
             Duty access
           </Link>
-          <p className="nav-label later-label">COMING IN LATER PHASES</p>
-          <span className="nav-disabled">
+          <Link
+            href={admin ? "/admin/projects" : "/work/tasks"}
+            prefetch={false}
+          >
             <FileText size={18} />
-            Projects & tasks <small>03</small>
-          </span>
+            {admin ? "Projects" : "My tasks"}
+          </Link>
+          {admin && (
+            <Link href="/admin/tasks">
+              <FileText size={18} />
+              Team tasks
+            </Link>
+          )}
+          <p className="nav-label later-label">COMING IN LATER PHASES</p>
           <span className="nav-disabled">
             <CalendarDays size={18} />
             Time & attendance <small>04</small>
@@ -88,7 +100,7 @@ export function Shell({
           <div className="phase-label">
             <span>ACCOUNT SECURITY</span>
             <span>
-              PHASE 2B <ArrowUpRight size={12} />
+              PHASE 3A <ArrowUpRight size={12} />
             </span>
           </div>
           <p>
@@ -103,7 +115,7 @@ export function Shell({
               <small>{admin ? "Administrator" : "Employee"}</small>
             </div>
           </div>
-          <Logout csrf={csrf} />
+          {duty ? <DutyLogout csrf={csrf} /> : <Logout csrf={csrf} />}
         </div>
       </aside>
       <div className="main-column">
@@ -113,7 +125,7 @@ export function Shell({
           </span>
           <div>
             <span className="timezone">Asia/Manila</span>
-            <span className="pill">PHASE 2B</span>
+            <span className="pill">PHASE 3A</span>
             <span className="avatar small-avatar">
               {name.slice(0, 1).toUpperCase()}
             </span>
@@ -122,7 +134,7 @@ export function Shell({
         <main className="content">{children}</main>
         <footer className="workspace-footer">
           Libetario Digital Marketing Services
-          <span>Private workspace · Duty security</span>
+          <span>Private workspace · Projects & tasks</span>
         </footer>
       </div>
     </div>

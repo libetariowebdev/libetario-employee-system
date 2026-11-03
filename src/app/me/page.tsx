@@ -97,8 +97,8 @@ export default async function MyOverview() {
           </h2>
           <p className="muted">
             View your authorization and complete secure sign-in from Duty
-            access. Work tools and attendance arrive in later phases. Signing in
-            does not clock you in or record paid time.
+            access, then open My tasks for your assigned work. Signing in does
+            not clock you in or record paid time.
           </p>
         </section>
       </div>

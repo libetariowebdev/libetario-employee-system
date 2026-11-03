@@ -26,7 +26,7 @@ export default function Login() {
         </div>
         <div className="auth-footer">
           <ShieldCheck size={17} /> Private team workspace{" "}
-          <span>2B / DUTY SECURITY</span>
+          <span>3A / PROJECTS & TASKS</span>
         </div>
       </section>
       <section className="auth-panel">
