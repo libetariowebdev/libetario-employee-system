@@ -131,7 +131,7 @@ export function Shell({
           </span>
           <div>
             <span className="timezone">Asia/Manila</span>
-            <span className="pill">PHASE 3A</span>
+            <span className="pill">PHASE 3B</span>
             <span className="avatar small-avatar">
               {name.slice(0, 1).toUpperCase()}
             </span>

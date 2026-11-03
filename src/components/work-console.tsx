@@ -595,7 +595,7 @@ export function TaskList({
       <Pagination page={data.page} hasNext={data.tasks.length === 50} />
       <p className="small muted">
         Submissions, reviews and private attachments are available in task
-        detail. Notifications and timers are deferred.
+        detail.
       </p>
     </>
   );
@@ -1148,8 +1148,7 @@ export function TaskDetail({
         ))}
       </section>
       <p className="notice">
-        No timer, attendance or payable time is recorded here. Notifications
-        remain deferred.
+        Task progress and submissions do not record working time.
       </p>
     </>
   );
