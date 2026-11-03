@@ -87,6 +87,7 @@ export async function listTasks(w: WorkSession, input: unknown = {}) {
       tasks: rows.map(({ total: _total, ...row }) => row),
       total,
       filterProject: b.project ?? null,
+      filters: { q: b.q, status: b.status, employee: b.employee },
       page: b.page,
       fetchedAt: clock.now,
     };
@@ -200,7 +201,7 @@ export async function workAdminOptions(w: WorkSession) {
   return workScoped(w, async (tx) => {
     const employees = await tx.$queryRaw<
       { id: string; display_name: string; employee_number: string }[]
-    >`SELECT p.user_id AS id,p.display_name,p.employee_number FROM employee_profiles p JOIN users u ON u.id=p.user_id WHERE u.role='EMPLOYEE' AND u.disabled_at IS NULL AND p.employment_status='ACTIVE' AND p.start_date<=(private.security_now() AT TIME ZONE 'Asia/Manila')::date ORDER BY p.display_name,p.user_id LIMIT 501`;
+    >`SELECT p.user_id AS id,p.display_name,p.employee_number FROM employee_profiles p JOIN users u ON u.id=p.user_id WHERE u.role='EMPLOYEE' AND u.disabled_at IS NULL AND p.employment_status='ACTIVE' AND p.start_date<=(private.security_now() AT TIME ZONE 'Asia/Manila')::date ORDER BY p.display_name,p.user_id`;
     const [policy] = await tx.$queryRaw<
       { id: string; cap: number }[]
     >`SELECT p.id,coalesce((p.configuration->'tasks'->>'maxRecipients')::int,500) AS cap FROM company_settings s JOIN policy_versions p ON p.id=s.work_policy_id WHERE s.id=1`;
