@@ -1,8 +1,8 @@
-# Libetario team workspace — Checkpoint 3a
+# Libetario team workspace — Checkpoint 3b
 
 Standalone employee-management foundation for Libetario Digital Marketing Services. Next.js App Router + TypeScript + Tailwind, PostgreSQL 18, Prisma 7 migrations, Argon2id passwords, persisted account sessions, server authorization and PostgreSQL row-level security.
 
-Real account/profile/rate/schedule management includes encrypted authenticator enrollment, mandatory administrator TOTP, hashed employee PINs, recovery/reset and secure duty authorization/login. Checkpoint 3a adds projects, shared tasks, explicit employee assignments/contributions and append-only comments: exactly 21 application tables. Employees need active DUTY for work data; MFA administrators use ACCOUNT without duty. Submissions/reviews/private uploads are checkpoint 3b, pending separate approval. Attendance, timers and payroll/PDF remain later phases. Signing in or changing progress does not record paid time.
+Real account/profile/rate/schedule management includes encrypted authenticator enrollment, mandatory administrator TOTP, hashed employee PINs, recovery/reset and secure duty authorization/login. Projects, shared tasks, explicit contributions, comments, immutable submitted revisions, reviews and private validated files now use exactly 27 application tables. Employees need active DUTY for work data; MFA administrators use ACCOUNT without duty. Attendance, timers and payroll/PDF remain later phases. Signing in, changing progress or submitting work does not record paid time.
 
 ## Start locally
 
@@ -29,6 +29,11 @@ pnpm mfa:init-keys
 pnpm db:migrate
 pnpm db:generate
 pnpm db:seed
+$env:DOTENV_CONFIG_PATH = '.env.test.local'
+node --import dotenv/config node_modules/prisma/build/index.js migrate deploy
+node --import dotenv/config --import tsx prisma/seed.ts
+Remove-Item Env:DOTENV_CONFIG_PATH
+pnpm uploads:init-keys
 pnpm dev
 ```
 
@@ -37,6 +42,8 @@ Open [the local workspace](http://127.0.0.1:3000). Use exactly this origin rathe
 **For this already-prepared workspace:** bootstrap, migrations and seed have been completed. Preserve the ignored `.env` and `.local/` files. Start `pnpm db:local` if the database is stopped, then `pnpm dev`. Do not rerun bootstrap or seed over existing data: both refuse rather than replacing credentials/data. Stop each server with Ctrl+C in its owning terminal.
 
 `db:bootstrap` creates only `libetario` and `libetario_test` in this dedicated cluster, generates random database passwords and a session secret, and writes ignored `.env` / `.env.test.local` files. `mfa:init-keys` adds separate random MFA keyrings to those files; it validates/preserves existing keys, refuses partial/invalid configuration and never prints keys. Never commit or share these files. `.env.example` contains configuration names only. The two app roles are non-owner, non-superuser, NOBYPASSRLS and have no membership in one another.
+
+The fresh-checkout block migrates and seeds both empty databases before uploads:init-keys, because the upload verifier is bound to each database's company_settings row. Do not repeat either seed on existing data; tests use their own random fixtures after initial setup. The test database is isolated from development and uses its own private root and upload key.
 
 For an existing Phase 1 checkout, preserve environment/data files, run `pnpm mfa:init-keys`, `pnpm db:migrate`, and `pnpm db:generate`. Apply migrations to the separate test database as shown below. The Phase 2a migration revokes pre-MFA sessions; administrators must sign in and enroll. Do not rerun bootstrap or the default seed.
 
@@ -68,9 +75,9 @@ TOTP uses SHA1, six digits, 30-second periods and ±1-step drift. A consumed cou
 
 An account with an unconfigured rate or schedule displays an explicit empty state. New profiles do not inherit a fictional wage or workweek. Money inputs are decimal strings; the exact four-decimal rate remains visible alongside the two-decimal PHP display. History end dates are exclusive.
 
-## Projects and shared tasks (checkpoint 3a)
+## Projects and shared tasks
 
-After an accepted 2b checkout, preserve keys/data and run `pnpm db:migrate` and `pnpm db:generate`. Migrate the dedicated test database separately as described below. No new secret, package, storage service or live-system integration is required. The current schema has 22 additive migrations and 21 application tables.
+To upgrade an accepted 3a checkout, preserve keys/data, run `pnpm install`, `pnpm db:migrate` and `pnpm db:generate`, migrate the dedicated test database as below, then run `pnpm uploads:init-keys`. Restart Next afterwards. That initializer adds a distinct random UPLOAD_VALIDATION_KEY and absolute PRIVATE_UPLOAD_ROOT to each ignored environment file and binds only a SHA-256 verifier in its database. It preserves existing configuration, prints no secret and requires migration-owner/local access. The current schema has 33 additive migrations and 27 application tables. No live-system integration is used.
 
 **Administrator:** open Projects, create a project (ACTIVE by default; PLANNING selectable), then open it to create a shared task. Choose INDIVIDUAL, SELECTED or ALL_ACTIVE. ALL_ACTIVE captures enabled ACTIVE employees whose start date has arrived in Manila at creation; later hires/reactivations are never added automatically. Invalid recipients/capacity reject the whole operation. The default 500-recipient cap is editable through the versioned WORK task-capacity form with recent administrator MFA, expected policy ID and a reason. The recipient picker does not silently truncate the eligible directory.
 
@@ -78,11 +85,33 @@ Edit project/task briefs with reasons, manage explicit membership, or cancel/res
 
 **Employee:** complete duty sign-in, then open My tasks at `/work/tasks` (also linked from the duty context). Only assigned tasks, minimal project data, own contribution/history and shared task comments are readable. This work layout uses DUTY independently of ACCOUNT expiry; profile/rates/security keep their existing account requirements. New/Updated indicators compare actual task/project/contribution versions with that employee's last list visit; the rendered list acknowledges only observed versions, so concurrent changes remain marked. This is a list indicator, not a notification service. List filters, pagination and explicit refresh use actual data.
 
-Mark your own Pending contribution In progress and add plain-text comments. Projects outside ACTIVE show an explicit read-only explanation and reject progress/comments on the server/database. Each task counts once toward a project's work denominator regardless of assignees; cancelled tasks are separate and empty projects show no countable work. SUBMITTED, REVISION_REQUIRED, APPROVED/Completed and project COMPLETED cannot be entered in 3a: actual submissions/reviews arrive in 3b. COPIES and notifications are deferred by owner decision. No timer, clock-in, attendance or paid time exists.
+Mark your own Pending contribution In progress and add plain-text comments. Projects outside ACTIVE show an explicit read-only explanation and reject progress, comments and submission/review writes on the server/database. Each task counts once toward a project's work denominator regardless of assignees; cancelled tasks are separate and empty projects show no countable work. Real reviews determine Approved / Completed, and project COMPLETED requires non-empty countable work with every task approved. COPIES and notifications are deferred by owner decision. No timer, clock-in, attendance or paid time exists.
 
 API surface: `/api/work/context`, `projects`, `projects/:id`, `tasks`, `tasks/:id`, `tasks/:id/progress`, `tasks/:id/members`, `tasks/:id/comments`, `seen` and administrator-only `admin-options` / `task-policy`, all under `/api/work/`. Mutations require the selected work session's CSRF and origin; JSON bodies max 128 KiB. Foreign and missing UUIDs return the same 404 for an otherwise valid work actor. RLS also applies to direct restricted-role SQL.
 
-3b design amendment: synchronous authenticated upload validation, at most two concurrent validations and 30-second timeout. No file processor role, background worker, lease/retry fields or scanner adapter. No file tables/endpoints/storage directories have been implemented in 3a. See docs/PHASE_3_PLAN.md and docs/ASSUMPTIONS.md for the approved later design. Notifications remain deferred for both 3a/3b.
+## Private submissions, reviews and files
+
+Employees open their task, start their contribution, create a draft, edit notes/HTTP(S) URLs and upload private attachments. **Submit for review** saves and freezes notes, URLs and included AVAILABLE files in one transaction. Save draft is optional before submitting; uploading does not implicitly save unsent text. Exclude a failed/unwanted attachment while the draft is open; its permanent owner/history remains. A revision request has a 10–2,000 character reason. Start revision, then create a new draft; prior submitted content and decisions cannot change. Employees see only their own contribution's submissions, reviews and files. Shared comments remain visible to assigned peers.
+
+Administrators use **Review queue** or task detail to review only the latest submitted revision. Choose APPROVED or REVISION_REQUIRED. Competing/stale decisions conflict. A shared task is APPROVED only when at least one required contribution exists and every required contribution is approved. APPROVED is terminal; follow-up work needs a new task. Withdrawing approved access preserves its required approved contribution; restoring access never changes the decision. Removing unfinished work excludes it from completion with an audit record.
+
+Uploads accept PDF, PNG, JPEG and WebP, positive size up to 10 MiB/file. Allowed types and supported limits are validated versioned WORK.uploads settings on Projects, requiring recent administrator MFA and a reason. Images are fully decoded (8,192 pixels/axis, 20 MP); PDFs are structurally parsed (500 pages, bounded objects/streams). Encrypted, active/action/embedded-file PDFs, unsupported codecs, animated images, malformed/truncated content and appended polyglots are rejected. Ordinary text and JPEG-image PDFs are supported. Validation is not a malware-free guarantee.
+
+Each authenticated upload request streams one raw file, not multipart: Content-Type, URL-encoded X-File-Name, exact X-Upload-Size and X-CSRF-Token headers. Names must have one matching extension; traversal, UNC/NTFS streams, reserved names and double extensions are rejected. Storage uses unrelated exclusive random keys. Actual bytes control limits even with false Content-Length. Quotas reserve before reading: default 10 files/draft, 100 MiB/uploader/Manila day, 1 GiB/project, 5 GiB/app. Failed/staged bytes count until physically removed. Attempts remain limited at 20 uploads and 120 downloads per user/15 minutes.
+
+At most two request-bound validations run across app processes, using session advisory locks, with a 30-second deadline. The parser runs in a short-lived child with bounded memory and no database/key environment, awaited inside the request; there is no background worker, queue, extra role or lease/retry machinery. QUARANTINED becomes AVAILABLE only after validation, a private exclusive move and a live-scope database publication check. WORK policy or validator-key changes permanently reject pending uploads. Submission membership/version and duty are rechecked. Crashes fail closed; a future worker is deferred until volume warrants it.
+
+Private bytes stay outside public/static hosting. Downloads stream through `/api/work/files/:id`, with current RLS/DUTY/MFA authorization and full size/hash verification before headers, attachment disposition, nosniff and no-store. No public URL, preview, range or HEAD download is supported. Every chunk rechecks authorization; withdrawing/restoring membership cannot revive an already-open stream. Data delivered before revocation cannot be recalled. Foreign/missing IDs return indistinguishable 404 to a valid work actor.
+
+Use `pnpm uploads:cleanup` (or `pnpm uploads:cleanup --test`) as an explicit operator command for rejected/incomplete bytes older than 24 hours, at most 100 per invocation. It requires migration credentials, confines known paths, reconciles recognized interrupted hard-link promotion, retains rows/links/audit and never removes AVAILABLE content. `--file-id UUID` targets one eligible failed upload. There is no automatic cleanup daemon. Do not delete files manually to bypass quotas.
+
+### Private storage backup and key rotation
+
+The app identity must be the only ordinary account able to write PRIVATE_UPLOAD_ROOT; restrict its Windows ACL and prevent static serving/network shares. The default roots are `.local/private-uploads` and `.local/private-uploads-test`. The app rejects symlink/junction/hard-link escapes and public/drive/workspace roots, but filesystem ACL provisioning is an operator responsibility. Keep adequate free disk and quotas before real use.
+
+**Back up private upload bytes together with the database.** Stop app writers and operator cleanup, take a consistent database dump plus the complete private root (objects and quarantine), record their common restore point, then resume. Preserve immutable file metadata, hashes and owner links; a database-only backup cannot restore attachments. Restore bytes and database from that same point, provision the private root/ACL, supply matching secrets, verify hashes and authorized downloads before reopening. A clean migration replay does not test backup restoration. A production restore rehearsal remains release work.
+
+Back up UPLOAD_VALIDATION_KEY securely with environment configuration; keep the MFA keyring backed up **separately from the database** as described below. Losing the upload capability key does not decrypt or destroy existing bytes: stop writers, run `pnpm uploads:init-keys --rotate` with migration credentials to bind new keys in the local dev/test databases, restart all app processes with their matching environment, and reconcile failed pending uploads. This command rotates both local environment files, invalidates their pending uploads and leaves AVAILABLE objects unchanged. Preserve old backups before rotation. It never prints keys; do not pass secrets in command arguments. Remote/production use requires an explicit `--allow-production` operator flag and separately approved deployment. Losing the MFA keyring still forces authenticator re-enrollment.
 
 Browser QA can optionally create clearly fake records in the dedicated test database only: `node --conditions=react-server --import tsx scripts/qa-work-fixture.ts`. It references the README seed example rather than storing another password; ignored .local/qa-work.json holds fake identifiers only. It is never imported by the app. No generated TOTP appears next to an input or in evidence screenshots.
 
@@ -137,31 +166,60 @@ The initializer creates keys for fresh local environment files; it is not the ro
 
 ## Tests and build
 
-Tests require the dedicated local test database and never run against production or the development database. Apply its migrations once, and after migration changes:
+Tests require the dedicated local test database and never run against production or the development database. Keep the database running. For a fresh database, first use the empty-database setup/seed above. On an existing prepared database, apply new test migrations and preserve seeds/data, then run pnpm test in PowerShell:
 
 ```powershell
+Set-Location -LiteralPath 'C:\Users\Dell\Desktop\Libetario Digital Marketing Services'
+Set-Alias pnpm 'C:\Users\Dell\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback\pnpm.cmd'
 $env:DOTENV_CONFIG_PATH = '.env.test.local'
 node --import dotenv/config node_modules/prisma/build/index.js migrate deploy
 Remove-Item Env:DOTENV_CONFIG_PATH
+pnpm uploads:init-keys
 pnpm test
-pnpm db:replay-check
-pnpm typecheck
-pnpm build
 ```
 
-The replay check creates a new randomly named database, applies all fifteen migrations, checks the seventeen-table/RLS boundary, and drops only that freshly created disposable database. Tests add randomly named fixtures to `libetario_test`, retaining test history instead of truncating protected audit records. Run the database suite and HTTP suite sequentially: operator rotation and trusted-clock fixtures temporarily change test-only state and restore it in `finally`.
+Run the database suite and HTTP suite sequentially: operator rotation and trusted-clock fixtures temporarily change test-only state and restore it in finally. Do not run pnpm test while HTTP tests or a browser QA session use the test database. Tests retain randomly named history instead of truncating protected audit records.
 
-For real HTTP checks, start a separate test server in one terminal:
+**Only one Next server may run per checkout folder**, even on different ports: `.next/dev/lock` and generated types are shared. Stop this folder's normal pnpm dev with Ctrl+C before starting the test server. Keep PostgreSQL running. In test-server terminal A:
 
 ```powershell
+Set-Location -LiteralPath 'C:\Users\Dell\Desktop\Libetario Digital Marketing Services'
 $env:DOTENV_CONFIG_PATH = '.env.test.local'
 $env:APP_ORIGIN = 'http://127.0.0.1:3001'
 $env:NEXT_TELEMETRY_DISABLED = '1'
 node --import dotenv/config node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3001
 ```
 
-Then run `pnpm test:http` in another terminal. Close the test-server terminal or restore its environment before starting the normal development server. Do not start Next with Node's `--env-file` flag: this installed Next version forwards that unsupported flag to worker `NODE_OPTIONS`. `dotenv/config` avoids that problem. Webpack is selected because Turbopack's CSS worker failed on this Windows runtime; the supported webpack production build passes.
+In terminal B, run:
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\Dell\Desktop\Libetario Digital Marketing Services'
+Set-Alias pnpm 'C:\Users\Dell\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback\pnpm.cmd'
+$env:HTTP_TEST_ORIGIN = 'http://127.0.0.1:3001'
+pnpm test:http
+Remove-Item Env:HTTP_TEST_ORIGIN
+```
+
+After HTTP tests, stop terminal A with Ctrl+C. In terminal B, with no Next server running, run:
+
+```powershell
+pnpm db:replay-check
+pnpm typecheck
+pnpm build
+pnpm audit --prod
+```
+
+Replay creates a new random database, applies all **33 migrations**, checks **27 RLS-enabled application tables**, and drops only that disposable database. To resume normal development in terminal A:
+
+```powershell
+Remove-Item Env:DOTENV_CONFIG_PATH -ErrorAction SilentlyContinue
+Remove-Item Env:APP_ORIGIN -ErrorAction SilentlyContinue
+Remove-Item Env:NEXT_TELEMETRY_DISABLED -ErrorAction SilentlyContinue
+pnpm dev
+```
+
+Do not start Next with Node's --env-file flag: this installed version forwards that unsupported flag to worker NODE_OPTIONS. dotenv/config avoids it. Webpack is used because Turbopack's CSS worker failed on this Windows runtime. Test fixtures import .env.test.local themselves; the server explicitly loads it. Upload key/root must match that test database, never the development database. If an initializer rotates an environment key, restart the test server before HTTP tests.
 
 `pnpm start` is a production server: production runtime requires an HTTPS `APP_ORIGIN`, appropriate reverse-proxy/TLS setup, and real environment secrets. Use `pnpm dev` for the local HTTP workflow. Passing a build does not authorize deploying real employee data before the duty-security and release gates.
 
-See [Phase 2b report](docs/PHASE_2B_REPORT.md), [accepted Phase 2a report](docs/PHASE_2A_REPORT.md), [policy defaults](docs/ASSUMPTIONS.md), [security and backup notes](docs/SECURITY.md), and [acceptance coverage](docs/TEST_COVERAGE.md). Stop before Phase 3 pending owner approval.
+See [Phase 3b report](docs/PHASE_3B_REPORT.md), [accepted Phase 3a report](docs/PHASE_3A_REPORT.md), [policy defaults](docs/ASSUMPTIONS.md), [security notes](docs/SECURITY.md) and [acceptance coverage](docs/TEST_COVERAGE.md). Stop before Phase 4 pending owner approval.

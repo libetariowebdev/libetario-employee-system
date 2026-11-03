@@ -1,8 +1,8 @@
 # Phase 3 plan — Projects, assignments and protected deliverables
 
-Status: **APPROVED with owner amendments, 3 November 2026. Implement 3a only; stop before 3b.**
+Status: **APPROVED with owner amendments, 3 November 2026. 3a owner-accepted; 3b implementation authorized and delivered separately. Stop before Phase 4.**
 
-Prepared 30 October 2026, Asia/Manila. Sources: BLUEPRINT.md Sections 6, 12–15; accepted Phases 1, 2a and 2b; the owner's Phase 3 decisions. At plan approval the baseline was seventeen application tables and 73 accepted tests. Checkpoint 3a now has 21 tables and 106 passing tests; see PHASE_3A_REPORT.md. 3b remains design-only and requires separate acceptance.
+Prepared 30 October 2026, Asia/Manila. Sources: BLUEPRINT.md Sections 6, 12–15; accepted Phases 1, 2a and 2b; the owner's Phase 3 decisions. At plan approval the baseline was seventeen application tables and 73 accepted tests. The accepted 3a checkpoint has 21 tables and 106 passing tests. The authorized 3b checkpoint adds six tables for 27 total; see PHASE_3B_REPORT.md for executed evidence. Historical checkpoint staging below describes the approval sequence.
 
 ## 1. Checkpoints and approval gates
 
@@ -205,4 +205,4 @@ Blueprint 15.4 will be reported as its Phase 3 data/collaboration/counting porti
 
 **3b only after that acceptance:** (1) six tables and owner/immutability grants; (2) draft/submit/review/revision transactions; (3) streaming quarantine/synchronous validation/downloads and reconciliation; (4) actual UI and tampering/race tests; (5) full regression/replay/build/audit, private-storage backup/run notes, coverage and PHASE_3B_REPORT.md. Stop before Phase 4.
 
-All defaults are approved subject to the amendments above, including submission privacy, reserved review-only transitions, all-required-contributors completion, 500 recipients and upload limits. **Implement 3a only; stop with PHASE_3A_REPORT.md before 3b.**
+All defaults are approved subject to the amendments above, including submission privacy, reserved review-only transitions, all-required-contributors completion, 500 recipients and upload limits. **3a was accepted; 3b is now authorized. Stop with PHASE_3B_REPORT.md before Phase 4.**
