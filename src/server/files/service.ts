@@ -239,6 +239,7 @@ type Locator = {
   media_type: string;
   size_bytes: bigint;
   sha256: string;
+  authorization_stamp: string;
 };
 export async function locate(w: WorkSession, id: string) {
   z.uuid().parse(id);
@@ -282,7 +283,11 @@ export async function download(w: WorkSession, id: string, request: Request) {
     }
     if (verify.digest("hex") !== f.sha256)
       throw new HttpError(503, "Stored file integrity check failed");
-    await locate(w, id);
+    const checkAccess = async () => {
+      if ((await locate(w, id)).authorization_stamp !== f.authorization_stamp)
+        throw new HttpError(403, "Download authorization changed");
+    };
+    await checkAccess();
     let position = 0;
     const stream = new ReadableStream<Uint8Array>({
       async pull(controller) {
@@ -292,7 +297,7 @@ export async function download(w: WorkSession, id: string, request: Request) {
             controller.error(new Error("Download interrupted"));
             return;
           }
-          await locate(w, id);
+          await checkAccess();
           const buf = Buffer.alloc(
             Math.min(65536, Number(f.size_bytes) - position),
           );

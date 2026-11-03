@@ -85,7 +85,10 @@ export async function progress(w: WorkSession, id: string, input: unknown) {
       ? !["PENDING", "CANCELLED"].includes(b.status)
       : b.status !== "IN_PROGRESS"
   )
-    throw new HttpError(400, "This transition is unavailable in checkpoint 3a");
+    throw new HttpError(
+      400,
+      "Use the submission and review workflow for this transition",
+    );
   return workScoped(w, async (tx) => {
     await tx.$queryRaw`SELECT private.task_progress(${id}::uuid,${b.expectedVersion},${b.status},${b.reason ?? null})::text`;
     return { ok: true };
