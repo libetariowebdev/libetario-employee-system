@@ -21,12 +21,15 @@ import * as mfa from "../auth/mfa";
 import * as dutyAuth from "../auth/duty";
 import * as duty from "../services/duty";
 import { requireDuty } from "../dal/duty";
+import { workSession } from "../dal/work";
+import * as work from "../services/work";
+import * as tasks from "../dal/tasks";
 const idSchema = z.uuid();
 const noStore = { "Cache-Control": "private, no-store" };
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return Response.json(body, { status, headers: { ...noStore, ...extra } });
 }
-async function boundedBody(request: Request) {
+async function boundedBody(request: Request, limit = 32768) {
   const reader = request.body?.getReader();
   if (!reader) return "";
   const chunks: Uint8Array[] = [];
@@ -36,7 +39,7 @@ async function boundedBody(request: Request) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 32768) {
+      if (size > limit) {
         await reader.cancel();
         throw new HttpError(413, "Request too large");
       }
@@ -51,6 +54,7 @@ export async function api(request: Request, path: string[]): Promise<Response> {
   try {
     const key = path.join("/"),
       method = request.method;
+    const bodyLimit = path[0] === "work" ? 131072 : 32768;
     if (method === "GET" && key === "auth/csrf") {
       const csrf = csrfAnonymous();
       return json({ csrf }, 200, {
@@ -67,9 +71,9 @@ export async function api(request: Request, path: string[]): Promise<Response> {
           .toLowerCase() !== "application/json"
       )
         throw new HttpError(415, "Use application/json");
-      if (Number(request.headers.get("content-length") ?? 0) > 32768)
+      if (Number(request.headers.get("content-length") ?? 0) > bodyLimit)
         throw new HttpError(413, "Request too large");
-      const text = await boundedBody(request);
+      const text = await boundedBody(request, bodyLimit);
       try {
         body = JSON.parse(text);
       } catch {
@@ -216,6 +220,67 @@ export async function api(request: Request, path: string[]): Promise<Response> {
           ),
         );
       return response;
+    }
+    if (path[0] === "work") {
+      const w = await workSession(
+        cookie(request, "libetario_session"),
+        cookie(request, "libetario_duty"),
+      );
+      if (method !== "GET") assertCsrf(request, body.csrf, w.token);
+      const { csrf: _workCsrf, ...input } = body;
+      const query = new URL(request.url).searchParams;
+      if (key === "work/context" && method === "GET")
+        return json({ administrator: w.admin, name: w.name, csrf: w.csrf });
+      if (key === "work/admin-options" && method === "GET")
+        return json(await tasks.workAdminOptions(w));
+      if (key === "work/task-policy" && method === "POST")
+        return json(await work.updateTaskPolicy(w, input));
+      if (key === "work/seen" && method === "POST")
+        return json(await work.seen(w, input));
+      const filters = Object.fromEntries(
+        [...query].filter(([, value]) => value !== ""),
+      );
+      if (key === "work/projects" && method === "GET")
+        return json(await tasks.listProjects(w, filters));
+      if (key === "work/projects" && method === "POST")
+        return json(await work.createProject(w, input), 201);
+      if (key === "work/tasks" && method === "GET")
+        return json(await tasks.listTasks(w, filters));
+      if (key === "work/tasks" && method === "POST")
+        return json(await work.createTask(w, input), 201);
+      if (path[1] === "projects" && path.length === 3) {
+        const id = idSchema.parse(path[2]);
+        if (method === "GET") return json(await tasks.projectDetail(w, id));
+        if (method === "PATCH")
+          return json(await work.editProject(w, id, input));
+      }
+      if (path[1] === "tasks" && path[2]) {
+        const id = idSchema.parse(path[2]);
+        if (path.length === 3 && method === "GET")
+          return json(
+            await tasks.taskDetail(
+              w,
+              id,
+              z.coerce
+                .number()
+                .int()
+                .min(1)
+                .max(2000)
+                .parse(query.get("commentsPage") ?? 1),
+            ),
+          );
+        if (path.length === 3 && method === "PATCH")
+          return json(await work.editTask(w, id, input));
+        if (path.length === 4 && method === "POST") {
+          if (path[3] === "progress")
+            return json(await work.progress(w, id, input));
+          if (path[3] === "members")
+            return json(await work.membership(w, id, input));
+          if (path[3] === "comments")
+            return json(await work.comment(w, id, input), 201);
+        }
+      }
+      throw new HttpError(404, "Not found");
     }
     const s = await session(
       cookie(request, "libetario_session"),
