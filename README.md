@@ -1,8 +1,8 @@
-# Libetario team workspace — Phase 2b
+# Libetario team workspace — Checkpoint 3a
 
 Standalone employee-management foundation for Libetario Digital Marketing Services. Next.js App Router + TypeScript + Tailwind, PostgreSQL 18, Prisma 7 migrations, Argon2id passwords, persisted account sessions, server authorization and PostgreSQL row-level security.
 
-Real account/profile/rate/schedule management includes encrypted authenticator enrollment, mandatory administrator TOTP, hashed employee PINs, recovery/reset and secure duty authorization/login. Exactly seventeen application tables exist: the accepted fifteen plus duty_authorizations and auth_challenges. Tasks, attendance and payroll/PDF remain later phases. Signing in does not record paid time. Phase 3 has not started.
+Real account/profile/rate/schedule management includes encrypted authenticator enrollment, mandatory administrator TOTP, hashed employee PINs, recovery/reset and secure duty authorization/login. Checkpoint 3a adds projects, shared tasks, explicit employee assignments/contributions and append-only comments: exactly 21 application tables. Employees need active DUTY for work data; MFA administrators use ACCOUNT without duty. Submissions/reviews/private uploads are checkpoint 3b, pending separate approval. Attendance, timers and payroll/PDF remain later phases. Signing in or changing progress does not record paid time.
 
 ## Start locally
 
@@ -46,11 +46,11 @@ Docker is an alternative to embedded PostgreSQL: use `compose.yaml` with a priva
 
 Development only; no real people or real payroll data. These credentials are defined only here and in `prisma/seed.ts`. Every seeded account must change its password before seeing protected records.
 
-| Role | Username | Email | Temporary password |
-| --- | --- | --- | --- |
-| Administrator | `demo.admin` | `admin@example.invalid` | `FakeAdmin-ChangeMe-2026!` |
-| Employee A | `demo.employee.a` | `employee.a@example.invalid` | `FakeEmployeeA-ChangeMe-2026!` |
-| Employee B | `demo.employee.b` | `employee.b@example.invalid` | `FakeEmployeeB-ChangeMe-2026!` |
+| Role          | Username          | Email                        | Temporary password             |
+| ------------- | ----------------- | ---------------------------- | ------------------------------ |
+| Administrator | `demo.admin`      | `admin@example.invalid`      | `FakeAdmin-ChangeMe-2026!`     |
+| Employee A    | `demo.employee.a` | `employee.a@example.invalid` | `FakeEmployeeA-ChangeMe-2026!` |
+| Employee B    | `demo.employee.b` | `employee.b@example.invalid` | `FakeEmployeeB-ChangeMe-2026!` |
 
 Seed refuses production, remote hosts, unexpected database names, and databases containing accounts. It does not reset users on rerun. Initial passwords are never logged by the app. New employees created by an administrator receive a random temporary password in a one-time response and must change it. Deliver it privately; use the reset workflow if it is lost.
 
@@ -67,6 +67,24 @@ TOTP uses SHA1, six digits, 30-second periods and ±1-step drift. A consumed cou
 **Reset:** administrator opens the employee profile, records how identity was verified, and issues a token. Every existing session and older reset token is invalidated immediately. The token is shown once for private delivery. Employee enters it at `/reset-password` with a new password, then signs in afresh. Default validity is 15 minutes. No email transport is claimed or configured.
 
 An account with an unconfigured rate or schedule displays an explicit empty state. New profiles do not inherit a fictional wage or workweek. Money inputs are decimal strings; the exact four-decimal rate remains visible alongside the two-decimal PHP display. History end dates are exclusive.
+
+## Projects and shared tasks (checkpoint 3a)
+
+After an accepted 2b checkout, preserve keys/data and run `pnpm db:migrate` and `pnpm db:generate`. Migrate the dedicated test database separately as described below. No new secret, package, storage service or live-system integration is required. The current schema has 22 additive migrations and 21 application tables.
+
+**Administrator:** open Projects, create a project (ACTIVE by default; PLANNING selectable), then open it to create a shared task. Choose INDIVIDUAL, SELECTED or ALL_ACTIVE. ALL_ACTIVE captures enabled ACTIVE employees whose start date has arrived in Manila at creation; later hires/reactivations are never added automatically. Invalid recipients/capacity reject the whole operation. The default 500-recipient cap is editable through the versioned WORK task-capacity form with recent administrator MFA, expected policy ID and a reason. The recipient picker does not silently truncate the eligible directory.
+
+Edit project/task briefs with reasons, manage explicit membership, or cancel/restore unfinished work. Withdrawal removes next-request access and retains the contribution identity/history. Reassign an INDIVIDUAL task by selecting the old withdrawal and new recipient together. If every assignment is withdrawn, the task becomes CANCELLED; on an ACTIVE project, select recipients and use Restore access & reopen task with a reason. A normally cancelled task with current members uses Restore to pending. No DELETE action erases history.
+
+**Employee:** complete duty sign-in, then open My tasks at `/work/tasks` (also linked from the duty context). Only assigned tasks, minimal project data, own contribution/history and shared task comments are readable. This work layout uses DUTY independently of ACCOUNT expiry; profile/rates/security keep their existing account requirements. New/Updated indicators compare actual task/project/contribution versions with that employee's last list visit; the rendered list acknowledges only observed versions, so concurrent changes remain marked. This is a list indicator, not a notification service. List filters, pagination and explicit refresh use actual data.
+
+Mark your own Pending contribution In progress and add plain-text comments. Projects outside ACTIVE show an explicit read-only explanation and reject progress/comments on the server/database. Each task counts once toward a project's work denominator regardless of assignees; cancelled tasks are separate and empty projects show no countable work. SUBMITTED, REVISION_REQUIRED, APPROVED/Completed and project COMPLETED cannot be entered in 3a: actual submissions/reviews arrive in 3b. COPIES and notifications are deferred by owner decision. No timer, clock-in, attendance or paid time exists.
+
+API surface: `/api/work/context`, `projects`, `projects/:id`, `tasks`, `tasks/:id`, `tasks/:id/progress`, `tasks/:id/members`, `tasks/:id/comments`, `seen` and administrator-only `admin-options` / `task-policy`, all under `/api/work/`. Mutations require the selected work session's CSRF and origin; JSON bodies max 128 KiB. Foreign and missing UUIDs return the same 404 for an otherwise valid work actor. RLS also applies to direct restricted-role SQL.
+
+3b design amendment: synchronous authenticated upload validation, at most two concurrent validations and 30-second timeout. No file processor role, background worker, lease/retry fields or scanner adapter. No file tables/endpoints/storage directories have been implemented in 3a. See docs/PHASE_3_PLAN.md and docs/ASSUMPTIONS.md for the approved later design. Notifications remain deferred for both 3a/3b.
+
+Browser QA can optionally create clearly fake records in the dedicated test database only: `node --conditions=react-server --import tsx scripts/qa-work-fixture.ts`. It references the README seed example rather than storing another password; ignored .local/qa-work.json holds fake identifiers only. It is never imported by the app. No generated TOTP appears next to an input or in evidence screenshots.
 
 ## Duty authorization and secure access
 
