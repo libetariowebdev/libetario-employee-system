@@ -24,6 +24,9 @@ import { requireDuty } from "../dal/duty";
 import { workSession } from "../dal/work";
 import * as work from "../services/work";
 import * as tasks from "../dal/tasks";
+import * as submissions from "../services/submissions";
+import { excludeFile } from "../files/service";
+import { fileApi } from "./files";
 const idSchema = z.uuid();
 const noStore = { "Cache-Control": "private, no-store" };
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
@@ -54,6 +57,11 @@ export async function api(request: Request, path: string[]): Promise<Response> {
   try {
     const key = path.join("/"),
       method = request.method;
+    if (
+      path[0] === "work" &&
+      (path[1] === "files" || (path.length === 4 && path[3] === "files"))
+    )
+      return fileApi(request, path);
     const bodyLimit = path[0] === "work" ? 131072 : 32768;
     if (method === "GET" && key === "auth/csrf") {
       const csrf = csrfAnonymous();
@@ -240,6 +248,50 @@ export async function api(request: Request, path: string[]): Promise<Response> {
       const filters = Object.fromEntries(
         [...query].filter(([, value]) => value !== ""),
       );
+      if (key === "work/upload-policy" && method === "GET")
+        return json(await submissions.uploadPolicy(w));
+      if (key === "work/upload-policy" && method === "POST")
+        return json(await submissions.updateUploadPolicy(w, input));
+      if (key === "work/reviews" && method === "GET")
+        return json(
+          await submissions.reviewQueue(
+            w,
+            z.coerce
+              .number()
+              .int()
+              .min(1)
+              .max(2000)
+              .parse(query.get("page") ?? 1),
+          ),
+        );
+      if (
+        path[1] === "assignments" &&
+        path.length === 4 &&
+        path[3] === "drafts" &&
+        method === "POST"
+      )
+        return json(
+          await submissions.createDraft(w, idSchema.parse(path[2]), input),
+          201,
+        );
+      if (
+        path[1] === "draft-files" &&
+        path.length === 4 &&
+        path[3] === "exclude" &&
+        method === "POST"
+      )
+        return json(await excludeFile(w, idSchema.parse(path[2])));
+      if (path[1] === "submissions" && path[2]) {
+        const id = idSchema.parse(path[2]);
+        if (path.length === 3 && method === "GET")
+          return json(await submissions.submission(w, id));
+        if (path.length === 3 && method === "PATCH")
+          return json(await submissions.editDraft(w, id, input));
+        if (path.length === 4 && path[3] === "submit" && method === "POST")
+          return json(await submissions.submitDraft(w, id, input));
+        if (path.length === 4 && path[3] === "review" && method === "POST")
+          return json(await submissions.review(w, id, input), 201);
+      }
       if (key === "work/projects" && method === "GET")
         return json(await tasks.listProjects(w, filters));
       if (key === "work/projects" && method === "POST")
@@ -256,6 +308,8 @@ export async function api(request: Request, path: string[]): Promise<Response> {
       }
       if (path[1] === "tasks" && path[2]) {
         const id = idSchema.parse(path[2]);
+        if (path.length === 4 && path[3] === "submissions" && method === "GET")
+          return json(await submissions.submissions(w, id));
         if (path.length === 3 && method === "GET")
           return json(
             await tasks.taskDetail(

@@ -20,7 +20,9 @@
     "mfa:init-keys": "tsx scripts/init-mfa-keys.ts",
     "mfa:reset-admin": "tsx scripts/reset-admin-mfa.ts",
     "mfa:rotate-keys": "tsx scripts/rotate-mfa-keys.ts",
-    "test:http": "node --conditions=react-server --import tsx --test --test-concurrency=1 tests/e2e/*.test.ts"
+    "test:http": "node --conditions=react-server --import tsx --test --test-concurrency=1 tests/e2e/*.test.ts",
+    "uploads:init-keys": "tsx scripts/init-upload-keys.ts",
+    "uploads:cleanup": "node --conditions=react-server --import tsx scripts/cleanup-uploads.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
@@ -31,11 +33,13 @@
     "lucide-react": "^0.577.0",
     "next": "16.4.3",
     "otpauth": "^9.5.2",
+    "pdf-lib": "1.17.1",
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "server-only": "^0.0.1",
+    "sharp": "0.35.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {

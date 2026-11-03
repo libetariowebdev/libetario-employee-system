@@ -17,5 +17,9 @@ export function proxy(request: NextRequest) {
   return response;
 }
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Upload Route Handlers own auth/CSRF/security headers. Skipping Proxy here
+  // avoids Next's eager body cloning, so quotas precede streaming disk writes.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/work/(?:projects|tasks|submissions)/[^/]+/files).*)",
+  ],
 };

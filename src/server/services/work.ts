@@ -46,11 +46,6 @@ export async function editProject(w: WorkSession, id: string, input: unknown) {
   admin(w);
   z.uuid().parse(id);
   const b = editProjectSchema.parse(input);
-  if (b.status === "COMPLETED")
-    throw new HttpError(
-      400,
-      "Reviews are required before completing a project",
-    );
   const { expectedVersion, reason, ...fields } = b;
   const data = explicitFields(fields, input);
   return workScoped(w, async (tx) => {
