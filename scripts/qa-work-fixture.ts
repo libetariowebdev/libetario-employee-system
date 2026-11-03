@@ -22,14 +22,14 @@ try {
       creationKey: randomUUID(),
       code: "QA-" + f.suffix.toUpperCase(),
       name: "QA · Website refresh",
-      description: "Fake test project for the checkpoint 3a browser review.",
+      description: "Fake test project for the checkpoint 3b browser review.",
     });
   const task = await createTask(w, {
     creationKey: randomUUID(),
     projectId: p.id,
-    title: "Review the landing page brief",
+    title: "Deliver the landing page brief",
     instructions:
-      "Read the brief and share a progress update with your team. This is fake QA work; changing progress does not start a timer.",
+      "Read the brief and submit notes with a private attachment for review. This is fake QA work; no action records paid time.",
     assignmentMode: "SELECTED",
     employeeIds: [f.ids.a, f.ids.b],
     references: [
