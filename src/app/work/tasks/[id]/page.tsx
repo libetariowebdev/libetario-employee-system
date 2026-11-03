@@ -1,3 +1,4 @@
+import { Deliverables } from "@/components/deliverables";
 import Link from "next/link";
 import { workPage, serialized, pageRecord } from "@/server/work-page";
 import { taskDetail } from "@/server/dal/tasks";
@@ -20,6 +21,7 @@ export default async function TaskPage({
         ← My tasks
       </Link>
       <TaskDetail admin={w.admin} csrf={w.csrf} data={serialized(data)} />
+      <Deliverables w={w} taskId={id} />
     </>
   );
 }

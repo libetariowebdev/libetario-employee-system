@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { mutation } from "./forms";
 import {
   assignmentModes,
+  taskStates,
   priorities,
   projectStates,
   label,
@@ -200,7 +201,7 @@ export function ProjectForm({
           Status
           <select name="status" defaultValue={project?.status ?? "ACTIVE"}>
             {projectStates
-              .filter((v) => v !== "COMPLETED")
+              .filter((v) => project || v !== "COMPLETED")
               .map((v) => (
                 <option key={v}>{v}</option>
               ))}
@@ -514,7 +515,7 @@ export function TaskList({
           Status
           <select name="status" defaultValue={data.filters?.status ?? ""}>
             <option value="">All statuses</option>
-            {["PENDING", "IN_PROGRESS", "CANCELLED"].map((v) => (
+            {taskStates.map((v) => (
               <option key={v} value={v}>
                 {label(v)}
               </option>
@@ -593,8 +594,8 @@ export function TaskList({
       </div>
       <Pagination page={data.page} hasNext={data.tasks.length === 50} />
       <p className="small muted">
-        Submissions, reviews and attachments open in checkpoint 3b.
-        Notifications and timers are deferred.
+        Submissions, reviews and private attachments are available in task
+        detail. Notifications and timers are deferred.
       </p>
     </>
   );
@@ -828,7 +829,11 @@ export function TaskDetail({
           <p>{label(t.own_status ?? "PENDING")}</p>
           <button
             className="button primary"
-            disabled={busy || !!reason || t.own_status !== "PENDING"}
+            disabled={
+              busy ||
+              !!reason ||
+              !["PENDING", "REVISION_REQUIRED"].includes(t.own_status ?? "")
+            }
             onClick={() =>
               run("/progress", {
                 expectedVersion: t.assignment_version,
@@ -836,7 +841,9 @@ export function TaskDetail({
               })
             }
           >
-            Mark in progress
+            {t.own_status === "REVISION_REQUIRED"
+              ? "Start revision"
+              : "Mark in progress"}
           </button>
           <p className="small muted">
             This changes your contribution status. It does not start a timer or
@@ -847,7 +854,11 @@ export function TaskDetail({
       {admin && (
         <>
           <details className="card work-panel">
-            <summary>Edit task brief</summary>
+            <summary>
+              {t.status === "APPROVED"
+                ? "Approved brief (read-only)"
+                : "Edit task brief"}
+            </summary>
             <form
               className="form-stack"
               onSubmit={(e) => {
@@ -915,7 +926,10 @@ export function TaskDetail({
                 Reason
                 <input name="reason" required minLength={10} maxLength={500} />
               </label>
-              <button className="button primary" disabled={busy}>
+              <button
+                className="button primary"
+                disabled={busy || t.status === "APPROVED"}
+              >
                 Save brief
               </button>
             </form>
@@ -970,7 +984,14 @@ export function TaskDetail({
                       (p) =>
                         !data.assignments.some(
                           (a) => a.employee_id === p.id && !a.access_revoked_at,
-                        ),
+                        ) &&
+                        (t.status !== "APPROVED" ||
+                          data.assignments.some(
+                            (a) =>
+                              a.employee_id === p.id &&
+                              a.status === "APPROVED" &&
+                              a.access_revoked_at,
+                          )),
                     )
                     .map((p) => (
                       <label className="check-row" key={p.id}>
@@ -1034,7 +1055,8 @@ export function TaskDetail({
               </label>
               <p className="small muted">
                 History is retained. Restoration returns current contributions
-                to Pending. Reviews and approvals are unavailable until 3b.
+                to Pending. Approved contributions are retained and cannot be
+                reopened.
                 {t.status === "CANCELLED" &&
                   data.assignments.every((a) => a.access_revoked_at) &&
                   " All access was withdrawn: select recipients in membership above to restore this task explicitly."}
@@ -1043,6 +1065,7 @@ export function TaskDetail({
                 className="button secondary"
                 disabled={
                   busy ||
+                  t.status === "APPROVED" ||
                   (t.status === "CANCELLED" &&
                     data.assignments.every((a) => a.access_revoked_at))
                 }
@@ -1125,8 +1148,8 @@ export function TaskDetail({
         ))}
       </section>
       <p className="notice">
-        Submissions, revisions, reviews and private attachments arrive in
-        checkpoint 3b. No timer, attendance or payable time is recorded here.
+        No timer, attendance or payable time is recorded here. Notifications
+        remain deferred.
       </p>
     </>
   );

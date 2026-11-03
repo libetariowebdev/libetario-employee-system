@@ -15,6 +15,33 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.work-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.file-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.file-list li > div {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.form-stack input[type="file"] {
+  max-width: 100%;
+}
 .reference-list {
   padding-left: 20px;
   overflow-wrap: anywhere;

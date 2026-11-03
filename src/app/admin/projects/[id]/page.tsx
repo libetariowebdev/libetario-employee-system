@@ -1,3 +1,5 @@
+import { PrivateFiles } from "@/components/submission-console";
+import { listFiles } from "@/server/files/service";
 import Link from "next/link";
 import {
   workPage,
@@ -33,6 +35,16 @@ export default async function ProjectPage({
         ← Projects
       </Link>
       <ProjectInfo project={serialized(p)} />
+      <section className="card work-panel">
+        <h2>Common project files</h2>
+        <PrivateFiles
+          files={serialized(await listFiles(w, "PROJECT", id))}
+          kind="projects"
+          parent={id}
+          csrf={w.csrf}
+          upload={w.admin && p.status === "ACTIVE"}
+        />
+      </section>
       <details className="card work-panel">
         <summary>Edit project & status</summary>
         <ProjectForm csrf={w.csrf} project={serialized(p)} />

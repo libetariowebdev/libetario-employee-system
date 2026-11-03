@@ -1,3 +1,5 @@
+import { UploadSettings } from "@/components/submission-console";
+import { uploadPolicy } from "@/server/services/submissions";
 import { workPage, serialized, workSearch } from "@/server/work-page";
 import { listProjects, workAdminOptions } from "@/server/dal/tasks";
 import { Capacity, ProjectList, ProjectForm } from "@/components/work-console";
@@ -24,6 +26,7 @@ export default async function Projects({
         <ProjectForm csrf={w.csrf} />
       </details>
       <Capacity csrf={w.csrf} options={options} />
+      <UploadSettings policy={await uploadPolicy(w)} csrf={w.csrf} />
     </>
   );
 }

@@ -86,6 +86,12 @@ export function Shell({
               Team tasks
             </Link>
           )}
+          {admin && (
+            <Link href="/admin/reviews">
+              <FileText size={18} />
+              Review submissions
+            </Link>
+          )}
           <p className="nav-label later-label">COMING IN LATER PHASES</p>
           <span className="nav-disabled">
             <CalendarDays size={18} />
@@ -100,7 +106,7 @@ export function Shell({
           <div className="phase-label">
             <span>ACCOUNT SECURITY</span>
             <span>
-              PHASE 3A <ArrowUpRight size={12} />
+              PHASE 3B <ArrowUpRight size={12} />
             </span>
           </div>
           <p>
