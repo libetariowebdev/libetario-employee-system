@@ -21,6 +21,7 @@
     "mfa:reset-admin": "tsx scripts/reset-admin-mfa.ts",
     "mfa:rotate-keys": "tsx scripts/rotate-mfa-keys.ts",
     "test:http": "node --conditions=react-server --import tsx --test --test-concurrency=1 tests/e2e/*.test.ts",
+    "test:all:win": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-all-win.ps1",
     "uploads:init-keys": "tsx scripts/init-upload-keys.ts",
     "uploads:cleanup": "node --conditions=react-server --import tsx scripts/cleanup-uploads.ts",
     "attendance:reconcile": "tsx scripts/reconcile-attendance.ts"

@@ -466,7 +466,7 @@ test("replacement reset tokens invalidate predecessors; reset-token lockout prev
     await temp.owner.end();
   }
 });
-test("only the thirty-four checkpoint 4b tables migrate and every application table has RLS enabled", async () => {
+test("only the forty-one checkpoint 5a tables migrate and every application table has RLS enabled", async () => {
   const rows = (
     await f.owner.query(
       "SELECT c.relname,c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_prisma_migrations' ORDER BY c.relname",
@@ -485,7 +485,9 @@ test("only the thirty-four checkpoint 4b tables migrate and every application ta
       "credential_resets",
       "daily_report_entries",
       "daily_reports",
+      "deduction_types",
       "duty_authorizations",
+      "earning_types",
       "employee_pins",
       "employee_profiles",
       "employee_rate_history",
@@ -493,6 +495,11 @@ test("only the thirty-four checkpoint 4b tables migrate and every application ta
       "employee_schedule_history",
       "file_objects",
       "mfa_enrollments",
+      "payroll_adjustments",
+      "payroll_item_attendance",
+      "payroll_items",
+      "payroll_lines",
+      "payroll_periods",
       "policy_versions",
       "project_files",
       "projects",
