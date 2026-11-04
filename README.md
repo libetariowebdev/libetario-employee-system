@@ -1,4 +1,4 @@
-# Libetario team workspace — Checkpoint 5a
+# Libetario team workspace — Checkpoint 5b
 
 Standalone employee-management foundation for Libetario Digital Marketing Services. Next.js App Router + TypeScript + Tailwind, PostgreSQL 18, Prisma 7 migrations, Argon2id passwords, persisted account sessions, server authorization and PostgreSQL row-level security.
 
@@ -77,7 +77,7 @@ An account with an unconfigured rate or schedule displays an explicit empty stat
 
 ## Projects and shared tasks
 
-To upgrade a checkout that predates private uploads, preserve keys/data, run `pnpm install`, `pnpm db:migrate` and `pnpm db:generate`, migrate the dedicated test database as below, then run `pnpm uploads:init-keys`. That initializer adds a distinct random UPLOAD_VALIDATION_KEY and absolute PRIVATE_UPLOAD_ROOT to each ignored environment file and binds only a SHA-256 verifier in its database. It preserves existing configuration, prints no secret and requires migration-owner/local access. To upgrade an accepted 4b checkout, apply the new migrations and regenerate Prisma, then restart Next. Keep the existing keys and storage. The current schema has 54 migrations and 41 application tables.
+To upgrade a checkout that predates private uploads, preserve keys and data, run `pnpm install`, `pnpm db:migrate` and `pnpm db:generate`, migrate the dedicated test database as below, then run `pnpm uploads:init-keys`. That initializer adds a distinct random UPLOAD_VALIDATION_KEY and absolute PRIVATE_UPLOAD_ROOT to each ignored environment file and binds only a SHA-256 verifier in its database. It preserves existing configuration, prints no secret and requires migration-owner/local access. From 5a, install the pinned dependencies, apply the two migrations, regenerate Prisma and restart Next. Keep the existing keys and storage. The current schema has 56 migrations and 43 application tables.
 
 **Administrator:** open Projects, create a project (ACTIVE by default; PLANNING selectable), then open it to create a shared task. Choose INDIVIDUAL, SELECTED or ALL_ACTIVE. ALL_ACTIVE captures enabled ACTIVE employees whose start date has arrived in Manila at creation; later hires/reactivations are never added automatically. Invalid recipients/capacity reject the whole operation. The default 500-recipient cap is editable through the versioned WORK task-capacity form with recent administrator MFA, expected policy ID and a reason. The recipient picker does not silently truncate the eligible directory.
 
@@ -208,6 +208,8 @@ The command creates a temporary checkout and two fresh PostgreSQL clusters, each
 
 Checkpoint 5a verification terminated a run while its disposable database clock was overridden and confirmed all three listeners closed. Two subsequent full invocations each passed 212 tests, closed their listeners and removed their temporary checkouts. [Phase 5a verification](docs/PHASE_5A_REPORT.md)
 
+The 5b suite includes a real 50,001-row export fixture. Its database setup can take a few minutes on Windows. [Phase 5b verification](docs/PHASE_5B_REPORT.md)
+
 The existing manual commands use the dedicated `.env.test.local` database. Keep that database running. For a fresh manual-test database, use the empty-database setup and seed above. On an existing prepared database, apply new test migrations and preserve seeds/data, then run `pnpm test` in PowerShell:
 
 ```powershell
@@ -251,7 +253,7 @@ pnpm build
 pnpm audit --prod
 ```
 
-Replay creates a new random database, applies all **54 migrations**, checks **41 RLS-enabled application tables**, and drops only that disposable database. To resume normal development in terminal A:
+Replay creates a new random database, applies all **56 migrations**, checks **43 RLS-enabled application tables**, and drops only that disposable database. Resume normal development in terminal A with the following command.
 
 ```powershell
 Remove-Item Env:DOTENV_CONFIG_PATH -ErrorAction SilentlyContinue
@@ -264,12 +266,26 @@ Do not start Next with Node's --env-file flag: this installed version forwards t
 
 `pnpm start` is a production server: production runtime requires an HTTPS `APP_ORIGIN`, appropriate reverse-proxy/TLS setup, and real environment secrets. Use `pnpm dev` for the local HTTP workflow. Passing a build does not authorize deploying real employee data before the duty-security and release gates.
 
-## Weekly payroll (checkpoint 5a)
+## Weekly payroll, payment and payslips
 
 Sign in as an MFA administrator and open **Payroll → Payroll settings and readiness**. Publish a dated PAY revision with a reason and configure the REGULAR earning type. The readiness page lists each missing setting and what it blocks. Confirm rates and schedules on employee profiles. Configure a Manila cutoff weekday and the payday offset before creating a period. Creating the first period fixes the weekday.
 
 Open a weekly draft with the selected employee roster. The period uses a start-inclusive, end-exclusive range. Review each employee's items and resolve blocking attendance issues. Review exact allocations on shifts with overrides or midnight splits. Use **Account security → Verify recent MFA** for manual items, allocation review, adjustments and approval. Manual earnings and deductions require a reason and an evidence note. A fixed deduction is applied once per week using the applicable catalog revision on the last included date.
 
-After the cutoff, **Approve and freeze payroll** saves the approved items, rates, rules, employee identity and source evidence. Employees can view their own finalized lines under **My payroll** using account sign-in. To correct an unpaid approved line, prepare a replacement or record a void with a reason and evidence. Approving a replacement marks the predecessor ADJUSTED. The 5a checkpoint ends at approval. Payment recording and PDF issuance are checkpoint 5b.
+After the cutoff, **Approve and freeze payroll** saves the approved items, rates, rules, employee identity and source evidence. The approval request then issues the approved PDF. Employees can use **My payroll** and **My payslips** with ordinary account sign-in, including off duty. To correct an unpaid approved line, prepare a replacement or record a void with a reason and evidence. Approving a replacement marks the predecessor ADJUSTED.
 
-See the [Phase 5a report](docs/PHASE_5A_REPORT.md), [accepted Phase 4b report](docs/PHASE_4B_REPORT.md), [policy assumptions](docs/ASSUMPTIONS.md), [security notes](docs/SECURITY.md) and [acceptance coverage](docs/TEST_COVERAGE.md).
+After an actual disbursement, open the approved employee line, verify recent MFA under **Account security** and select **Record an actual payment**. Enter the Manila payment date, configured method, transaction reference, exact PHP net and reason. The applicable PAY revision and the frozen period policy must both allow the method. The stricter date rule applies. A reviewed zero-net line shows **No disbursement due**. The paid version is published after the payment commits. If issuance fails, retry it on the line. The approved version remains available. For a paid correction, flag the original line for review and post an authorized manual adjustment to a later period.
+
+**Payslips and exports** accepts a range of up to 31 Manila dates by weekly period start and an optional employee account UUID. CSV has separate approval and payment status columns and a 50,000-row limit. The ZIP includes both published event versions where applicable and has limits of 100 PDFs and 100 MiB, including archive metadata. A missing or corrupt PDF stops the request. Resolve missing issuance on the payroll line or restore the exact bytes from backup.
+
+### Local branding and private backup
+
+Set optional `PAYSLIP_LOGO_PATH` to a local absolute PNG or JPEG path readable by the server, then restart. Images may be up to 1 MiB and two million pixels. The company name serves as the header if the logo is absent or invalid, and the administrator sees that fallback on the issued line. `PAYSLIP_EXTRA_FONT_PATH` optionally supplies an operator-licensed local TTF covering additional Unicode scripts. The renderer uses bundled Noto Sans by default and makes a missing glyph retryable after an appropriate font is configured.
+
+Back up the database and the entire `PRIVATE_UPLOAD_ROOT` at a consistent point, including `payslip-objects`. Pause file writes during a local backup or use a consistent snapshot. Restore the matching bytes before opening downloads. Back up any local branding assets used for future issuance separately. PDF generation and exports are local.
+
+An interrupted publish may leave an unreferenced private candidate. Run `pnpm payslips:cleanup` using migration-owner credentials against the intended database and matching private root. The operator checks candidate age and committed ownership under the same per-key lock as publication. It removes only unowned candidates at least 24 hours old and retains published bytes. Use `pnpm payslips:cleanup --key <64-hex-key>` to examine a particular candidate. The bulk scan checks up to 5,000 entries per payslip directory and processes up to 100 keys. Non-local and production targets require the existing operator override.
+
+PDF generation uses `pdf-lib@1.17.1` and `@pdf-lib/fontkit@1.1.1`, both MIT. The bundled Noto Sans Regular font uses SIL OFL 1.1. Its bundled SHA-256 is `b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5`. Tests extract text with `pdfjs-dist@5.4.624` under Apache-2.0. [Bundled font license](src/server/payslips/assets/OFL.txt) · [Noto Sans upstream](https://github.com/notofonts/noto-fonts/tree/main/hinted/ttf/NotoSans)
+
+See the [Phase 5b report](docs/PHASE_5B_REPORT.md), [accepted Phase 5a report](docs/PHASE_5A_REPORT.md), [policy assumptions](docs/ASSUMPTIONS.md), [security notes](docs/SECURITY.md) and [acceptance coverage](docs/TEST_COVERAGE.md).

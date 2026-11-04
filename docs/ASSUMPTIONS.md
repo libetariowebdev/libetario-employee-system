@@ -1,6 +1,6 @@
 # Configurable policy defaults and open decisions
 
-Phases 1 through checkpoint 4b are owner-accepted. Checkpoint 5a passed verification and awaits owner acceptance. Checkpoint 5b requires separate approval.
+Phases 1 through checkpoint 5a are owner-accepted. Checkpoint 5b is subject to separate owner acceptance.
 
 ## Checkpoint 5a payroll policy
 
@@ -12,8 +12,8 @@ These decisions supersede earlier provisional payroll defaults. PAY starts **UNC
 | Exact allocation and rounding | Review the allocation for an approved override or Manila midnight split. Total allocated seconds must equal the approved total. Decide paid-day eligibility, partial days, minimum pay, lateness, and separate time and money rounding, including explicit NONE. A non-cent-exact item with money rounding set to NONE needs review. A negative net blocks approval. Zero net requires a reviewed no-disbursement decision. |
 | Manual items | Overtime, rest-day, holiday and other premiums, allowances and bonuses take reviewed manual amounts with a reason and supporting evidence. WORK holiday dates are informational. The owner/accountant confirms which manual classifications are applicable. |
 | Deductions | Configure explicit employee or designation applicability, an effective date and a reason. Use fixed or reviewed manual amounts. A fixed amount uses the revision effective on the last included date and applies once per period. The catalog starts empty. Confirm applicable contributions, withholding, loans and other deductions with the accountant. |
-| Cutoff and payday | Choose the start weekday at Manila midnight and the payday offset after the exclusive cutoff. The weekday is fixed once any period exists. Configure payment methods, reference rules and date rules for readiness. Recording payment belongs to 5b. |
-| Corrections after approval | Drafts recalculate from current eligible evidence. Void or replace an unpaid approved line with an audited decision. Confirm with the owner/accountant how to handle a paid correction in a later period. The intended workflow flags the issue and links an explicitly reviewed later-period manual item to the original paid line. The paid ledger and PDF verification belongs to 5b. |
+| Cutoff and payday | Choose the start weekday at Manila midnight and the payday offset after the exclusive cutoff. The weekday is fixed once any period exists. Configure payment methods, reference rules and date rules for readiness. |
+| Corrections after approval | Drafts recalculate from current eligible evidence. Void or replace an unpaid approved line with an audited decision. Confirm with the owner/accountant how to handle a paid correction in a later period. The workflow flags the issue and links an explicitly reviewed later-period manual item to the original paid line. |
 
 Administrative review and test fixtures are local. No financial calculation uses task time or the attendance-versus-task gap.
 
@@ -209,7 +209,12 @@ All policies below will be persisted in validated, versioned configuration. Chan
 
 ## Checkpoint 5b payment and archival rules
 
-The payment workflow will require a recorded actual date, method and reference. The intended scope is one full payment for an eligible approved line. The payroll snapshot and each issued PDF remain immutable. The 5a policy section above records the choices that must be configured before payroll approval.
+- Record one external disbursement per approved line with recent MFA, a reason, both expected versions, the actual Manila date and the exact positive PHP net. Future dates fail. Accountant review of zero net produces **No disbursement due** at approval and leaves the payment ledger empty. No statutory deductions or payment methods are seeded.
+- A complete PAY revision must apply on the actual payment date. Its method code and reference format must match a method in the frozen period policy. Both date rules are enforced against the frozen cutoff and payday. The format is stable per method code. References trim surrounding whitespace, use ASCII letters and digits with optional internal hyphens or underscores for alphanumeric methods, and have at most 80 characters. DIGITS preserves leading zeros. UPPER_ALNUM applies ASCII uppercase before cross-line uniqueness and retry comparison.
+- The approved PDF is version 1. Payment creates version 2 after financial commit. An older finalized line or an unsuccessful issue can use the guarded issue action. A paid issue first ensures the approval version exists. Void and replacement preserve historical PDFs and expose the current line state in the app. Paid corrections remain linked manual adjustments in a later period, subject to owner/accountant review.
+- Published PDF bytes are immutable and use a separate private storage namespace. Downloads verify the full file against its recorded length and SHA-256 before serving. Ordinary off-duty account sign-in gives employees access to their own versions. Revoking the account session or disabling the account aborts further chunks. Files and database must be backed up together.
+- Missing or invalid local branding uses the frozen company name. Bundled Noto Sans covers Latin and other scripts in its repertoire. Configure a local additional font that covers any otherwise unsupported names or labels. Unsupported glyphs fail issuance explicitly and can be retried after font configuration.
+- Archive preflight includes every required event version for finalized lines in the selected range and fails on missing or corrupt bytes or size/count overflow. CSV and ZIP use up to 31 Manila dates filtered by period start and support an optional employee filter. CSV includes drafts and a separate payment status. Published files and exported payroll contain private employee data.
 
 ## Owner/accountant decisions still needed
 

@@ -1,6 +1,6 @@
-# Acceptance coverage — checkpoint 5a
+# Acceptance coverage — checkpoint 5b
 
-Date: 4 November 2026, Asia/Manila. Checkpoints through 4b are owner-accepted. Checkpoint 5a adds payroll policy, weekly drafts, corrections and frozen approval. Checkpoint 5b requires separate acceptance.
+Date 4 November 2026, Asia/Manila. Checkpoints through 5a are owner-accepted. Checkpoint 5b adds payment recording, immutable payslips and payroll exports.
 
 ## Section 15 status
 
@@ -14,9 +14,9 @@ Date: 4 November 2026, Asia/Manila. Checkpoints through 4b are owner-accepted. C
 | 15.6 Clock Out with running task                               | Clock Out ends open breaks and running segments together. It also stops paused roots and rejects stale Resume. HTTP Switch/Clock Out preserves the invariant.                                                                | **Passed**.                                                                                                            |
 | 15.7 Attendance 8h and task 6h                                 | The actual PostgreSQL aggregate, HTTP response, rendered report and CSV distinguish 8h gross attendance, 6h task time and a 2h review gap.                                                                                   | **Passed**. Attendance approval remains explicit.                                                                      |
 | 15.8 Distinct rates and frozen pay | PHP 1,600.00 on the daily fixture and PHP 1,255.00 on the hourly fixture. Mid-week rate and policy selection. Later profile, rate and policy changes preserve frozen JSON and digest. | **Passed for payroll calculation and frozen snapshots.** |
-| 15.9 Missed punch and recalculation | Actual missing-shift request, attendance approval and payroll allocation review. Both approval/correction lock orders. Draft recalculation, unpaid replacement and void preserve evidence. | **Passed for the pre-payment workflow.** Paid correction with the payment ledger is 5b. |
-| 15.10 Own finalized PDF only | A/B isolation for finalized payroll lines in restricted SQL, API, SSR and RSC. Private project/task files retain separate authorization coverage. | **Finalized-line privacy covered.** Payslip PDFs are 5b. |
-| 15.11 Approved versus Paid | Duplicate create and approve races, current MFA and cutoff checks, idempotent retries and immutable approval snapshot. Approval records no payment. | **Passed for approval.** Recording payment once is 5b. |
+| 15.9 Missed punch and recalculation | Missing-shift request, attendance approval and payroll allocation review. Both approval/correction lock orders. Draft recalculation, unpaid replacement and void preserve evidence. A paid correction posts a linked later-period adjustment while both old PDFs and the payment remain intact. | **Passed**. |
+| 15.10 Own finalized PDF only | Off-duty owner and MFA administrator download over HTTP. Peer, anonymous, SETUP and genuine DUTY-only access denied. Guessed reference, file UUID and storage key, HEAD, Range, conditional request, no-store and restricted SQL checks. | **Passed**. |
+| 15.11 Approved versus Paid | Approval records no payment. Actual disbursement is recorded once under concurrent requests and retries. Invalid, duplicate, superseded, unconfigured and zero-net attempts fail. The snapshot and approval PDF stay frozen after payment. | **Passed**. |
 | 15.12 Overnight, cutoff, missing punches, MFA, uploads, mobile | Overnight payroll conserves approved override seconds across adjacent Saturday-cutoff weeks. Existing weekend/year cutoff, MFA, upload and mobile-related cases remain in regression. | **Passed for automated cutoff, overnight and missing-punch cases.** Wider device testing remains release work. |
 
 Revision decisions and immutable resubmission remain covered under Phase 3. Timed revision work is linked to its exact review in 4b. The previous 15.6 and 15.7 labels have been corrected to match the blueprint.
@@ -49,9 +49,12 @@ Revision decisions and immutable resubmission remain covered under Phase 3. Time
 | tests/e2e/work-time-http.test.ts      |       7 |
 | tests/integration/payroll.test.ts    |      12 |
 | tests/e2e/payroll-http.test.ts        |       2 |
-| **Total**                             | **212** |
+| tests/integration/payslips.test.ts    |       6 |
+| tests/unit/payslip-pdf.test.ts        |       1 |
+| tests/e2e/payslips-http.test.ts       |       4 |
+| **Total**                             | **223** |
 
-The suite retains the 198 accepted 4b cases and adds 12 payroll database integration cases and 2 HTTP cases. Repeated runs and assertions within a test are counted once. [Phase 5a verification](PHASE_5A_REPORT.md)
+The suite retains the 212 accepted 5a cases and adds 11 checkpoint 5b cases. Repeated runs and assertions within a test are counted once. [Phase 5b verification](PHASE_5B_REPORT.md)
 
 All database tests use real local PostgreSQL, with restricted non-owner NOBYPASS runtime/auth roles where applicable. HTTP tests use the actual Next server pointed at the dedicated test database. Clock/key/policy fixtures are sequential and restore state in finally. Owner fixtures replace only the dedicated test database's trusted server clock; there is no request-controlled clock. Lock races observe actual blocked PostgreSQL requests before release.
 
@@ -98,6 +101,12 @@ Actor/server timestamp/audit, optimistic versions, retries, reasoned cancel/rest
 
 ## Release checks and boundaries
 
-Clean replay applied **54 migrations** and verified exactly **41 RLS-enabled application tables**. Payment recording and payslips are 5b. See the delivery report for the full Windows runner and release check results.
+Checkpoint 5a replay applied **54 migrations** and verified exactly **41 RLS-enabled application tables**. [Phase 5a verification](PHASE_5A_REPORT.md)
+
+## New 5b evidence
+
+- A4 size and extracted text cover frozen employee fields, pay period, rates, days and hours, exact PHP values, earnings and deductions, approval date, actual payment date, opaque reference, Unicode names and the company-name fallback. Repeated item headings and footers were visually checked on a two-page synthetic sample.
+- The approval and payment versions have distinct opaque references and file keys. SHA-256 and size match stored bytes. Concurrent issuance and financial retries preserve one version per event. Storage and publication failures preserve financial state. An owner-checked orphan cleanup removes an abandoned candidate and retains published bytes. Database constraints reject a cross-purpose relink.
+- The archive verifies each included file and reports missing and corrupt bytes. Tests inspect ZIP entries and CRC, exercise the PDF count and total byte bounds, and verify date-range and row overflow handling for CSV. CSV escapes formula prefixes and separates approval and payment status. Restricted database authorization is rechecked between chunks. A live HTTP CSV aborts on revocation.
 
 Private bytes and database must be backed up consistently; the MFA keyring remains separately backed up. README contains exact PowerShell commands, test-server environment, the one-Next-server-per-folder limitation, upload key binding/rotation and manual cleanup. Hosting remains local only; host ACL provisioning, real-phone/broader browser testing, owner walkthrough and production backup/restore rehearsal remain release work.
