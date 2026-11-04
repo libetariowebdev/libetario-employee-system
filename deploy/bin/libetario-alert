@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+instance=${1:-}
+if [[ $instance == health-host ]]; then
+  unit=libetario-health.service
+elif [[ $instance =~ ^(backup|reconcile)-(stage|prod)$ ]]; then
+  unit=libetario-${BASH_REMATCH[1]}@${BASH_REMATCH[2]}.service
+else
+  exit 2
+fi
+# Root-owned curl config supplies the HTTPS URL and any authorization header.
+/usr/bin/curl --config /etc/libetario/alerts.curl --proto '=https' +  --silent --fail --output /dev/null --max-time 15 +  --data-urlencode "unit=$unit" --data-urlencode "host=$(/usr/bin/hostname)" +  --data-urlencode "at=$(/usr/bin/date -u +%FT%TZ)" --data-urlencode 'result=failed'

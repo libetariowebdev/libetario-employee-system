@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+instance=${1:-}
+[[ $instance =~ ^(backup|reconcile)-(stage|prod)$ ]]
+config=/etc/libetario/heartbeat-"$instance".curl
+# A dedicated URL per job lets an external monitor detect missed invocations.
+if [[ -f $config ]]; then
+  /usr/bin/curl --config "$config" --proto '=https' --silent --fail --output /dev/null --max-time 15
+fi

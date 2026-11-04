@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+if [[ $EUID -ne 0 || $# -lt 2 || ! $1 =~ ^(prod|stage|scratch)$ ]]; then
+  printf '%s\n' 'Usage: sudo libetario-ops prod|stage|scratch COMMAND [ARGS]' >&2
+  exit 2
+fi
+target=$1
+shift
+for file in "/etc/libetario/$target/operator.env" "/etc/libetario/$target/runtime.env"; do
+  if [[ ! -f $file || -L $file || $(/usr/bin/stat -c '%u %a' "$file") != '0 600' ]]; then
+    printf '%s\n' 'Release environment files must be regular root-owned files with mode 0600.' >&2
+    exit 2
+  fi
+done
+set -a
+# Both files are root-owned mode 0600. No release files are sourced.
+source "/etc/libetario/$target/operator.env"
+source "/etc/libetario/$target/runtime.env"
+set +a
+[[ ${LIBETARIO_TARGET:-} == "$target" && ${NODE_ENV:-} == production ]]
+unset NODE_OPTIONS DOTENV_CONFIG_PATH DOTENV_CONFIG_OVERRIDE
+export PATH=/opt/libetario-tools/node/bin:/usr/local/bin:/usr/bin:/bin
+export HISTFILE=/dev/null
+cd "/opt/libetario/$target/current"
+exec /usr/bin/flock --exclusive --nonblock --no-fork "/run/libetario/$target/ops.lock" "$@"

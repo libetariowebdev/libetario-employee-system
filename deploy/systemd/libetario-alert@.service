@@ -1,0 +1,8 @@
+[Unit]
+Description=Libetario operations alert for %i
+
+[Service]
+Type=oneshot
+UMask=0077
+TimeoutStartSec=20s
+ExecStart=/usr/local/libexec/libetario-alert %i

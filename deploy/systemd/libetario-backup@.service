@@ -1,0 +1,14 @@
+[Unit]
+Description=Libetario paired offsite backup (%i)
+After=network-online.target
+Wants=network-online.target
+OnFailure=libetario-alert@backup-%i.service
+
+[Service]
+Type=oneshot
+UMask=0077
+TimeoutStartSec=6h
+TimeoutStopSec=20min
+KillMode=mixed
+ExecStart=/usr/local/libexec/libetario-ops %i /opt/libetario-tools/node/bin/node --import tsx scripts/release-backup.ts --allow-production
+ExecStartPost=/usr/local/libexec/libetario-heartbeat backup-%i

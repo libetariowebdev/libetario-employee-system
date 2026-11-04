@@ -1,0 +1,42 @@
+# Replace both example hostnames and the staging allowlist.
+# Keep just the relevant site block when staging uses a different VPS.
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+(libetario) {
+	@maintenance file {
+		root /run/libetario/{args[0]}
+		try_files /maintenance
+	}
+	handle @maintenance {
+		header Cache-Control "no-store"
+		header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		respond "Scheduled maintenance. Please try again shortly." 503
+	}
+	handle {
+		request_body {
+			max_size 11MiB
+		}
+		reverse_proxy 127.0.0.1:{args[1]}
+	}
+}
+
+team-staging.example.com {
+	route {
+		@blocked not remote_ip 192.0.2.10/32 2001:db8::10/128
+		respond @blocked 403
+		import libetario stage 3101
+	}
+}
+
+team.example.com {
+	# Remove this allowlist only after the production go-live decision.
+	route {
+		@blocked not remote_ip 192.0.2.10/32 2001:db8::10/128
+		respond @blocked 403
+		import libetario prod 3100
+	}
+}

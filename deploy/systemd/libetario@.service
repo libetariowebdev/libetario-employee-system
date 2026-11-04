@@ -1,0 +1,28 @@
+[Unit]
+Description=Libetario workforce web service (%i)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=libetario-%i
+Group=libetario-%i
+WorkingDirectory=/opt/libetario/%i/current
+EnvironmentFile=/etc/libetario/%i/runtime.env
+Environment=PATH=/opt/libetario-tools/node/bin:/usr/bin:/bin
+Environment=NEXT_TELEMETRY_DISABLED=1
+ExecStart=/opt/libetario-tools/node/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port ${APP_PORT}
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=45s
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+CacheDirectory=libetario-%i
+CacheDirectoryMode=0700
+ReadWritePaths=/var/lib/libetario/%i/private
+
+[Install]
+WantedBy=multi-user.target

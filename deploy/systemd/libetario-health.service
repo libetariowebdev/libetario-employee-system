@@ -1,0 +1,8 @@
+[Unit]
+Description=Check Libetario host disk, memory and time sync
+OnFailure=libetario-alert@health-host.service
+
+[Service]
+Type=oneshot
+TimeoutStartSec=30s
+ExecStart=/usr/local/libexec/libetario-health

@@ -1,0 +1,9 @@
+[Unit]
+Description=Schedule Libetario paired backups (%i)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Asia/Manila
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
+failed=0
+for dir in / /var/lib/libetario /var/lib/postgresql; do
+  [[ -d $dir ]] || continue
+  used=$(/usr/bin/df -P "$dir" | /usr/bin/awk 'END { sub(/%$/, "", $5); print $5 }')
+  inodes=$(/usr/bin/df -Pi "$dir" | /usr/bin/awk 'END { sub(/%$/, "", $5); print $5 }')
+  for percent in "$used" "$inodes"; do
+    if [[ $percent =~ ^[0-9]+$ ]] && (( percent >= 75 )); then
+      printf 'Storage warning for %s. Block or inode use %s percent.\n' "$dir" "$percent"
+      if (( percent >= 85 )); then failed=1; fi
+    fi
+  done
+done
+if ! /usr/bin/awk '/^MemAvailable:/ { found=1; if ($2 < 262144) exit 1 } END { if (!found) exit 1 }' /proc/meminfo; then
+  printf '%s\n' 'Available memory below 256 MiB or unavailable.'
+  failed=1
+fi
+if ! /usr/bin/chronyc waitsync 1 5 >/dev/null; then
+  printf '%s\n' 'Clock sync unavailable or remaining correction exceeds five seconds.'
+  failed=1
+fi
+exit "$failed"

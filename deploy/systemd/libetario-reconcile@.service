@@ -1,0 +1,11 @@
+[Unit]
+Description=Libetario attendance reconciliation (%i)
+After=postgresql.service
+OnFailure=libetario-alert@reconcile-%i.service
+
+[Service]
+Type=oneshot
+UMask=0077
+TimeoutStartSec=5min
+ExecStart=/usr/local/libexec/libetario-ops %i /opt/libetario-tools/node/bin/node --import tsx scripts/release-reconcile.ts --allow-production
+ExecStartPost=/usr/local/libexec/libetario-heartbeat reconcile-%i
