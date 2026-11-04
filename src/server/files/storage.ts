@@ -52,7 +52,8 @@ async function safeAncestors(target: string, missing = false) {
       throw new StorageError("Unsafe storage path");
   }
 }
-export async function storageRoot() {
+type StoragePurpose = "work" | "payslip";
+export async function storageRoot(purpose: StoragePurpose = "work") {
   const root = configuredRoot();
   await safeAncestors(root, true);
   await mkdir(root, { recursive: true, mode: 0o700 });
@@ -60,7 +61,7 @@ export async function storageRoot() {
   const canonical = await realpath(root);
   if (canonical.toLowerCase() !== root.toLowerCase())
     throw new StorageError("Unsafe storage root");
-  for (const name of ["quarantine", "objects"]) {
+  for (const name of areas(purpose)) {
     const dir = path.join(root, name);
     await mkdir(dir, { mode: 0o700 }).catch(async (e) => {
       if (e.code !== "EEXIST") throw e;
@@ -69,17 +70,33 @@ export async function storageRoot() {
   }
   return root;
 }
-export async function storagePath(key: string, area: "quarantine" | "objects") {
+function areas(purpose: StoragePurpose) {
+  return purpose === "payslip"
+    ? (["payslip-quarantine", "payslip-objects"] as const)
+    : (["quarantine", "objects"] as const);
+}
+export async function storagePath(
+  key: string,
+  area: "quarantine" | "objects",
+  purpose: StoragePurpose = "work",
+) {
   if (!/^[a-f0-9]{64}$/.test(key))
     throw new StorageError("Invalid storage key");
-  const root = await storageRoot(),
-    target = path.join(root, area, key + ".bin");
+  const root = await storageRoot(purpose),
+    target = path.join(
+      root,
+      areas(purpose)[area === "quarantine" ? 0 : 1],
+      key + ".bin",
+    );
   if (!inside(root, target)) throw new StorageError("Storage path escaped");
   return target;
 }
-export async function createQuarantine(key: string) {
+export async function createQuarantine(
+  key: string,
+  purpose: StoragePurpose = "work",
+) {
   return open(
-    await storagePath(key, "quarantine"),
+    await storagePath(key, "quarantine", purpose),
     constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY,
     0o600,
   );
@@ -87,8 +104,9 @@ export async function createQuarantine(key: string) {
 export async function openPrivate(
   key: string,
   area: "quarantine" | "objects" = "objects",
+  purpose: StoragePurpose = "work",
 ) {
-  const target = await storagePath(key, area),
+  const target = await storagePath(key, area, purpose),
     before = await lstat(target);
   if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1)
     throw new StorageError("Unsafe file");
@@ -103,10 +121,10 @@ export async function openPrivate(
   }
   return handle;
 }
-export async function promote(key: string) {
-  const source = await storagePath(key, "quarantine"),
-    dest = await storagePath(key, "objects");
-  const h = await openPrivate(key, "quarantine");
+export async function promote(key: string, purpose: StoragePurpose = "work") {
+  const source = await storagePath(key, "quarantine", purpose),
+    dest = await storagePath(key, "objects", purpose);
+  const h = await openPrivate(key, "quarantine", purpose);
   try {
     await link(source, dest);
     const moved = await lstat(dest),
@@ -123,9 +141,12 @@ export async function promote(key: string) {
     await h.close();
   }
 }
-export async function removeRejectedBytes(key: string) {
-  const q = await storagePath(key, "quarantine"),
-    o = await storagePath(key, "objects");
+export async function removeRejectedBytes(
+  key: string,
+  purpose: StoragePurpose = "work",
+) {
+  const q = await storagePath(key, "quarantine", purpose),
+    o = await storagePath(key, "objects", purpose);
   const stats = await Promise.all(
     [q, o].map((p) =>
       lstat(p).catch((e) => {
@@ -149,10 +170,10 @@ export async function removeRejectedBytes(key: string) {
     await unlink(q);
   }
   for (const area of ["quarantine", "objects"] as const) {
-    const target = await storagePath(key, area);
+    const target = await storagePath(key, area, purpose);
     let h;
     try {
-      h = await openPrivate(key, area);
+      h = await openPrivate(key, area, purpose);
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw e;

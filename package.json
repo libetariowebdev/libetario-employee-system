@@ -24,10 +24,12 @@
     "test:all:win": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-all-win.ps1",
     "uploads:init-keys": "tsx scripts/init-upload-keys.ts",
     "uploads:cleanup": "node --conditions=react-server --import tsx scripts/cleanup-uploads.ts",
+    "payslips:cleanup": "node --conditions=react-server --import tsx scripts/cleanup-payslip-orphans.ts",
     "attendance:reconcile": "tsx scripts/reconcile-attendance.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
+    "@pdf-lib/fontkit": "1.1.1",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "decimal.js": "^10.6.0",
@@ -52,6 +54,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "embedded-postgres": "18.4.0-beta.17",
+    "pdfjs-dist": "5.4.624",
     "prettier": "^3.9.10",
     "prisma": "7.10.1",
     "tailwindcss": "^4.2.1",

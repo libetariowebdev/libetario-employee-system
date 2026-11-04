@@ -121,16 +121,26 @@ export function Shell({
             <FileText size={18} />
             {admin ? "Daily reports" : "Daily report"}
           </Link>
-          <Link href={admin ? "/admin/payroll" : "/me/payroll"} prefetch={false}>
+          <Link
+            href={admin ? "/admin/payroll" : "/me/payroll"}
+            prefetch={false}
+          >
             <FileText size={18} />
             {admin ? "Payroll" : "My payroll"}
+          </Link>
+          <Link
+            href={admin ? "/admin/payroll/payslips" : "/me/payslips"}
+            prefetch={false}
+          >
+            <FileText size={18} />
+            {admin ? "Payslips and exports" : "My payslips"}
           </Link>
         </nav>
         <div className="sidebar-bottom">
           <div className="phase-label">
             <span>ACCOUNT SECURITY</span>
             <span>
-              PHASE 5A <ArrowUpRight size={12} />
+              PHASE 5B <ArrowUpRight size={12} />
             </span>
           </div>
           <p>
@@ -155,7 +165,7 @@ export function Shell({
           </span>
           <div>
             <span className="timezone">Asia/Manila</span>
-            <span className="pill">PHASE 5A</span>
+            <span className="pill">PHASE 5B</span>
             <span className="avatar small-avatar">
               {name.slice(0, 1).toUpperCase()}
             </span>

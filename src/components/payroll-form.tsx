@@ -118,7 +118,11 @@ export function PayrollForm({
           })),
       };
     }
-    if (mode !== "catalog" && mode !== "policy") {
+    if (
+      mode !== "catalog" &&
+      mode !== "policy" &&
+      !endpoint.endsWith("/payslip")
+    ) {
       const fingerprint = JSON.stringify(input);
       if (receipt.current?.fingerprint !== fingerprint)
         receipt.current = { fingerprint, key: crypto.randomUUID() };
@@ -138,7 +142,7 @@ export function PayrollForm({
         return;
       }
       receipt.current = null;
-      setStatus("Saved.");
+      setStatus(data.issuance?.message ?? "Saved.");
       if (navigate === "period")
         router.push("/admin/payroll/periods/" + data.id);
       else if (navigate === "line")

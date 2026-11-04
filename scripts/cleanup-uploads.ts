@@ -30,7 +30,7 @@ try {
   await c.query("SELECT pg_advisory_xact_lock(72426824::bigint)");
   const rows = (
     await c.query(
-      "SELECT id,storage_key,state FROM file_objects WHERE state IN ('QUARANTINED','REJECTED') AND bytes_deleted_at IS NULL AND created_at<=private.security_now()-interval '24 hours' AND ($1::uuid IS NULL OR id=$1) ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED",
+      "SELECT id,storage_key,state FROM file_objects WHERE purpose='WORK' AND state IN ('QUARANTINED','REJECTED') AND bytes_deleted_at IS NULL AND created_at<=private.security_now()-interval '24 hours' AND ($1::uuid IS NULL OR id=$1) ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED",
       [target],
     )
   ).rows;

@@ -61,6 +61,8 @@ export async function api(request: Request, path: string[]): Promise<Response> {
     const key = path.join("/"),
       method = request.method;
     if (path[0] === "attendance") return attendanceApi(request, path);
+    if (path[0] === "payroll" && method === "HEAD")
+      return await payrollApi(request, path, {});
     if (
       path[0] === "work" &&
       (path[1] === "files" || (path.length === 4 && path[3] === "files"))

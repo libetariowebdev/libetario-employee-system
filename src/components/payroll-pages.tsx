@@ -8,6 +8,7 @@ import { duration as formatDuration } from "@/lib/attendance";
 import { pageSession } from "@/server/page-session";
 import { HttpError } from "@/server/auth/security";
 import { payrollIdentity, readPayroll } from "@/server/services/payroll";
+import { readDelivery, type PayrollDelivery } from "@/server/payslips/service";
 import { PayrollForm, type PayrollField } from "./payroll-form";
 
 type Catalog = {
@@ -702,6 +703,8 @@ export async function PayrollLinePage({ id }: { id: string }) {
   ];
   const fixed = { expectedVersion: line.version };
   const reviewedSources = new Set<string>();
+  const delivery =
+    line.state === "DRAFT" ? null : await record(readDelivery(s, id));
   return (
     <div className="space-y-5">
       <Head>{line.employee as string}</Head>
@@ -732,6 +735,9 @@ export async function PayrollLinePage({ id }: { id: string }) {
             : "None listed"}
         </p>
       </Panel>
+      {delivery && (
+        <DeliveryPanel delivery={delivery} lineId={id} csrf={s.csrf} />
+      )}
       <Items line={line} admin />
       {line.state === "DRAFT" && (
         <>
@@ -975,6 +981,7 @@ export async function MyPayrollPage({
   const s = await account();
   if (id) {
     const line = await record(readPayroll<Line>(s, "own-line", id));
+    const delivery = await record(readDelivery(s, id));
     const employee = line.employee as {
       name: string;
       number: string;
@@ -997,6 +1004,7 @@ export async function MyPayrollPage({
           </p>
           <Totals line={line} />
         </Panel>
+        <DeliveryPanel delivery={delivery} lineId={id} />
         <Items line={line} />
       </div>
     );
@@ -1029,6 +1037,239 @@ export async function MyPayrollPage({
         {lines.length === 50 && (
           <Link href={"/me/payroll?offset=" + (skip + 50)}>Next page</Link>
         )}
+      </Panel>
+    </div>
+  );
+}
+
+function DeliveryPanel({
+  delivery,
+  lineId,
+  csrf,
+}: {
+  delivery: PayrollDelivery;
+  lineId: string;
+  csrf?: string;
+}) {
+  const root = "lines/" + lineId;
+  const status = delivery.paymentDate
+    ? "Paid"
+    : delivery.state === "APPROVED" && delivery.net === "0.00"
+      ? "No disbursement due"
+      : delivery.state === "APPROVED"
+        ? "Unpaid"
+        : "Not applicable";
+  return (
+    <Panel>
+      <h2>Payment and payslips</h2>
+      <p>
+        Payment status <strong>{status}</strong>
+        {delivery.paymentDate && ` · ${delivery.paymentDate} Manila`}
+      </p>
+      {delivery.payment && (
+        <p className="break-words">
+          {delivery.payment.method} · {delivery.payment.reference} ·{" "}
+          {amount(delivery.payment.amount)}
+        </p>
+      )}
+      {delivery.payslips.length ? (
+        <ul className="space-y-2">
+          {delivery.payslips.map((slip) => (
+            <li key={slip.reference}>
+              <a href={"/api/payroll/payslips/" + slip.reference}>
+                Download {slip.event === "PAYMENT" ? "paid" : "approved"} PDF ·
+                version {slip.version}
+              </a>
+              {csrf && !slip.hasLogo && (
+                <p>
+                  Issued with the company-name header. Configure a valid local
+                  logo for future PDFs.
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>The approved PDF is awaiting issuance.</p>
+      )}
+      {csrf && !delivery.payslips.some((slip) => slip.event === "APPROVAL") && (
+        <PayrollForm
+          csrf={csrf}
+          endpoint={root + "/payslip"}
+          title="Issue approved PDF"
+          fixed={{ event: "APPROVAL" }}
+        />
+      )}
+      {delivery.state === "PAID" &&
+        !delivery.payslips.some((slip) => slip.event === "PAYMENT") && (
+          <>
+            <p>The paid PDF is awaiting issuance.</p>
+            {csrf && (
+              <PayrollForm
+                csrf={csrf}
+                endpoint={root + "/payslip"}
+                title="Issue paid PDF"
+                fixed={{ event: "PAYMENT" }}
+              />
+            )}
+          </>
+        )}
+      {csrf && delivery.state === "APPROVED" && delivery.net !== "0.00" && (
+        <details>
+          <summary>Record an actual payment</summary>
+          <p>
+            Record only a completed disbursement. Verify recent MFA in Account
+            Security before saving.
+          </p>
+          {!delivery.paymentPolicyReady && (
+            <p role="alert">
+              The current PAY policy is incomplete. The policy in effect on the
+              actual payment date must be configured.
+            </p>
+          )}
+          <PayrollForm
+            csrf={csrf}
+            endpoint={root + "/payment"}
+            title="Record payment"
+            fixed={{
+              expectedVersion: delivery.version,
+              expectedPeriodVersion: delivery.periodVersion,
+            }}
+            disabled={!delivery.frozenMethods?.length}
+            fields={[
+              {
+                name: "date",
+                label: "Actual payment date (Manila)",
+                type: "date",
+                required: true,
+              },
+              {
+                name: "method",
+                label: "Payment method",
+                type: "select",
+                required: true,
+                options: delivery.frozenMethods?.map((method) => ({
+                  value: method.code,
+                  label:
+                    method.code +
+                    (method.reference === "DIGITS"
+                      ? " · digits reference"
+                      : " · alphanumeric reference"),
+                })),
+              },
+              {
+                name: "reference",
+                label: "Transaction reference",
+                required: true,
+              },
+              {
+                name: "amount",
+                label: "Exact disbursed PHP amount",
+                value: delivery.net,
+                required: true,
+              },
+              {
+                name: "reason",
+                label: "Reason (10–2,000 characters)",
+                type: "textarea",
+                required: true,
+              },
+            ]}
+          />
+        </details>
+      )}
+    </Panel>
+  );
+}
+
+export async function PayslipsPage({
+  admin = false,
+  offset,
+}: {
+  admin?: boolean;
+  offset?: string;
+}) {
+  const s = await account(admin);
+  const skip = pagination(offset);
+  const slips = await readDelivery(s, undefined, skip);
+  const href = admin ? "/admin/payroll/payslips" : "/me/payslips";
+  return (
+    <div className="space-y-5">
+      <Head>{admin ? "Payslips and payroll exports" : "My payslips"}</Head>
+      {admin && (
+        <Panel>
+          <h2>Export payroll</h2>
+          <p>
+            Select up to 31 Manila dates by weekly period start. Archives
+            require every included version to be available.
+          </p>
+          <form
+            className="form-stack space-y-3"
+            action="/api/payroll/export/csv"
+            method="get"
+          >
+            <label className="grid gap-1">
+              First period start
+              <input type="date" name="start" required />
+            </label>
+            <label className="grid gap-1">
+              Last period start
+              <input type="date" name="end" required />
+            </label>
+            <label className="grid gap-1">
+              Employee account ID (optional)
+              <input name="employee" />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button className="button" type="submit">
+                Export payroll CSV
+              </button>
+              <button
+                className="button"
+                type="submit"
+                formAction="/api/payroll/export/zip"
+              >
+                Download payslip archive
+              </button>
+            </div>
+          </form>
+        </Panel>
+      )}
+      <Panel>
+        <h2>Issued PDFs</h2>
+        {!slips.length && <p>No payslips have been issued for this view.</p>}
+        <ul className="space-y-3">
+          {slips.map((slip) => (
+            <li key={slip.reference}>
+              <div>
+                {admin && `${slip.employee} · `}
+                {slip.startDate} through {slip.endDate} exclusive ·{" "}
+                {amount(slip.net)} · {slip.lineState}
+              </div>
+              <a href={"/api/payroll/payslips/" + slip.reference}>
+                Download {slip.event === "PAYMENT" ? "paid" : "approved"} PDF ·
+                version {slip.version}
+              </a>
+              {" · "}
+              <Link
+                href={
+                  (admin ? "/admin/payroll/lines/" : "/me/payroll/") +
+                  slip.lineId
+                }
+              >
+                Payroll line
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap gap-2">
+          {skip > 0 && (
+            <Link href={href + "?offset=" + (skip - 50)}>Previous page</Link>
+          )}
+          {slips.length === 50 && (
+            <Link href={href + "?offset=" + (skip + 50)}>Next page</Link>
+          )}
+        </div>
       </Panel>
     </div>
   );
