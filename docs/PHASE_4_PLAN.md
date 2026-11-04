@@ -1,6 +1,6 @@
 # Phase 4 plan — Time, attendance and work reports
 
-Status: **PROPOSED — awaiting owner approval. Documentation only; no implementation or migration yet.**
+Status: **APPROVED for checkpoint 4a ONLY, with owner amendments, 4 November 2026. 4b requires separate acceptance.**
 
 Prepared 4 November 2026, Asia/Manila. Sources: BLUEPRINT.md Sections 7, 8, 11, 12, 14 and 15; the original time-schema design in PHASE_1_PLAN.md; accepted Phase 2 duty semantics; accepted Phase 3b; the owner's Phase 4 instructions. Baseline: **27 application tables, 33 migrations and 143 accepted tests**.
 
@@ -93,33 +93,15 @@ Reuse audit_log. Retry receipts live on their owning business rows; no operation
 - Explicit refinement of the old design's strictly positive closed durations: allow **end >= start**, flag retained zero-duration same-instant events and prohibit negative durations. Do not fabricate a one-second minimum or delete a Start immediately followed by revoke/stop. Empty half-open ranges contribute zero. Natural retry keys and interval constraints replace reliance on timestamp uniqueness for duplicate prevention.
 - Compute exact integer microseconds/numeric seconds in PostgreSQL from server timestamps and interval intersections. Serialize exact duration strings; retain fractional seconds. No floating-point elapsed accounting, attendance rounding, wage rounding or payable formula. Client animation is provisional and never saved as time.
 - Command timestamps come from private.security_now() **after locks and revalidation**, one timestamp for a compound action. Discard client clock/counter fields before accounting/fingerprinting. Only explicit correction proposals contain requested historical times, and those require administrator review.
-- Persist operation UUID, command kind, canonical accepted-payload fingerprint and result IDs on the owning row. Timer transition receipts remain append-only through the function in the root; proposed ceiling 1,000 user transitions/session, then explicit Stop/new timer, never receipt eviction/replay. Stop/Clock Out/security closure always remain permitted and recorded, including the one terminal receipt beyond the cap. Operation keys are scoped to actor/command/target. Conflicting reuse fails; exact retry returns the original result only after live authorization. Expected versions prevent reordered/concurrent writes. No receipt revives revoked access.
+- Persist per-action operation UUID, canonical accepted-payload fingerprint and result IDs on the owning business row for duplicate-click/retry protection. No timer receipt ceiling or terminal-receipt design. Live authorization and expected versions still apply before returning a receipt.
 
 All GiST/partial-unique/deferred checks are actual SQL migrations using the existing btree_gist support, not Prisma-only validation.
 
-## 5. Locking and integration with existing mutations
+## 5. Locking and integration — approved amendment
 
-Existing work functions lock policy -> users/session/duty -> project/task/assignment. Adding timer closure after locking a task must not introduce the inverse task -> employee order.
+Implement per-employee locking first, retaining the existing order: policy -> sorted users -> session/duty -> project/task/assignment where relevant -> shifts -> breaks -> adjustments. Clock, break, correction, approval and revocation all serialize on the affected employee user row. Recheck scope after waits; capture trusted action time after locks. Multi-employee batches lock users in UUID order before parent/child rows. No slow network work occurs under write locks.
 
-Propose a transaction advisory **time-coordination gate**: shared for ordinary time/report/correction commands, exclusive for multi-employee scope changes. The existing policy gate always comes first. Under an exclusive time gate, collect the affected employees before row locking; participating membership/time mutations cannot expand that set concurrently. Different employees' normal commands can proceed concurrently under shared gates.
-
-```text
-policy gate (exclusive for policy writes, otherwise shared)
- -> time-coordination gate (shared normal / exclusive scope change)
- -> security throttle locks where required
- -> affected users, including actor, in UUID order
- -> actor session and relevant duty/session rows in stable order
- -> projects -> tasks -> assignments in stable UUID order
- -> shifts -> breaks -> timer roots -> segment children
- -> adjustment/report rows -> writes and append-only audit
- -> live-scope/version/containment recheck -> COMMIT
-```
-
-Recheck after waits and derive the action timestamp after locks. A retryable conflict returns 409 or retries the whole transaction with the same key, never half a switch/closure. No slow parsing/export/network work occurs under these write locks.
-
-Inventory/adapt all existing scope-changing entry points: duty revoke/regrant; administrator account/employment changes; membership withdrawal; task/project cancellation, on-hold and completion; submission/review; auth/reset and operator invalidation paths. Acquire gates before affected row locks. Replace remaining direct-runtime sensitive updates with scoped functions where needed; do not add a trigger that acquires the gate after already locking a task/user. Constraint triggers defend final invariants but do not replace lock ordering. Retain all 143 prior behaviors/tests.
-
-4a integrates shift/break invalidation. 4b extends it to timer roots/segments and task/project transitions. The 4a Clock Out function references no not-yet-created timer table; its 4b replacement supplies the later atomic closure.
+Do not add a global shared/exclusive time-coordination gate unless a real PostgreSQL concurrency test demonstrates a failure that needs it. Preserve the failing evidence and explain any resulting gate in PHASE_4A_REPORT.md. Mandatory races: revoke/Clock In, Clock Out/break, double Clock In and correction/punch. Adapt invalidation functions before adding time effects; avoid reverse parent/employee lock acquisition. 4a references no timer table.
 
 ## 6. Attendance, breaks and review — 4a
 
@@ -139,13 +121,13 @@ own employee claim or labeled administrator proposal
 
 Default multiple non-overlapping shifts are allowed in one grant window. Clock Out closes a shift, not the grant; another explicit Clock In may use the same still-valid grant. A versioned shift-count cap may restrict this. Numbering stays unique across regrants; old closed rows retain their captured version. Clock In never silently continues a different date's grant or reopens a previous shift.
 
-Breaks are explicit start/end events, never automatic lunches/deductions. Resolve and snapshot the effective schedule on the authorized duty date. Positive paid/unpaid break allowances expose corresponding allowed break codes; mixed schedules require an explicit choice from those configured codes. Server derives the paid boolean. Without a configured classification, the default WORK GENERAL break is **paid**, with a configuration flag. Exceeding an allowance flags review, without clipping the actual break or deducting time. In 4b, Start break pauses a running timer first; End break does not automatically resume it.
+Breaks are explicit start/end events. Seed configurable MEAL (unpaid) and SHORT (paid) codes; the server snapshots their classification. Allowance comes from the effective schedule or explicit configured code allowance; unconfigured allowance is flagged. Excess break time is flagged, never clipped or given a penalty deduction. Suggested approval subtracts recorded unpaid breaks only; any flagged shift requires individual review. Owner/accountant must confirm paid/unpaid treatment before Phase 5. In 4b break start pauses a running timer, and break end does not automatically resume it.
 
 Missing schedule, non-working day, lateness, holiday configuration and overtime expectations are flags, not wage rules. No assumed workweek, Philippine holiday list or premium is installed. Informational holiday dates can be owner-entered in validated WORK configuration, initially empty. Proposed lateness grace is zero seconds, configurable. Explicit duty authorization permits recording even if schedule configuration needs review.
 
 An open shift **longer than 16 hours** is flagged by default; exactly 16 hours is the boundary. This configurable threshold is not a truncation or automatic Clock Out. Missing/system-closed/disputed shifts have no approved payable value. Flags are derived on reads and persisted/resolved by guarded reconciliation/review; no fake background execution is claimed.
 
-Every normal closed shift also requires explicit administrator approval. Approval requires a consistent closed shift, no pending correction, resolved/acknowledged exceptions, recent MFA, mandatory reason and a deliberately entered exact approved_payable_seconds. Proposed safe bound is 0 through effective gross attendance duration. It is **not prefilled/calculated** as gross minus breaks, task time or a task gap. Extra compensation/daily-rate entitlements belong to later payroll policy. Rejection keeps payable NULL and retains intervals. Applied corrections invalidate approval/payable, retaining the prior approval snapshot. Rejected corrections do not change effective values or the prior valid approval.
+Every closed shift requires explicit recent-MFA administrator approval. Show SUGGESTED seconds = effective elapsed minus recorded unpaid breaks, clearly labeled and never saved as approved until accepted. Administrator can accept or override (0..gross); override requires a 10–2,000 character reason. Flagged shifts require individual flag acknowledgment/reason. Clean closed shifts with no flags/pending correction support date-range/employee bulk preview and atomic version-checked approval of suggestions. No automatic approval or payroll result. Rejection leaves approved seconds NULL; applied corrections invalidate approval while preserving prior values.
 
 AMEND uses the captured version; a stale request cannot overwrite a later punch/correction. Reject or file a replacement, never edit the original pending proposal. ADD_MISSING_SHIFT addresses a missed Clock In with no existing shift: require a real own dated duty record, closed past proposed endpoints, no overlap and an explicit administrator decision. It creates CORRECTION-source time only on approval; absent actual punches remain NULL. Claims outside the verified historical window are retained/flagged but cannot silently extend duty/overnight authorization. Ambiguous historical evidence after regrant requires administrator verification; no historical grant is fabricated.
 
@@ -247,4 +229,4 @@ Coverage bookkeeping correction: the current 3b TEST_COVERAGE.md labels 15.6 as 
 
 **4b after acceptance:** (1) four tables and logical timer constraints/RLS; (2) timer/revision/Clock Out/Submit/withdrawal integration; (3) segment corrections; (4) daily reports, live aggregates and CSV; (5) employee/admin/mobile screens and test matrix; (6) full regression/replay/typecheck/build/audit and PHASE_4B_REPORT.md. **Stop before Phase 5.**
 
-Plan review points: paid-break fallback/mixed schedule choices, multiple shifts, manual payable-input bound, session-expiry versus revoke behavior, DUTY-only historical correction access, zero-duration evidence refinement and Section 11 deferrals. These are proposed defaults for approval. No Phase 4 feature or test is claimed implemented/passed at this planning gate.
+Plan review points: seeded break treatment/allowances, multiple shifts, suggested approval/override bounds, session-expiry versus revoke behavior, DUTY-only historical correction access, zero-duration evidence refinement and Section 11 deferrals. Owner amendments above are approved for 4a. Actual implementation/test evidence is reported separately; stop after 4a.
