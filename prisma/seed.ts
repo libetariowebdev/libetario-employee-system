@@ -4,6 +4,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { hashPassword } from "../src/server/auth/security";
 import { securitySchema } from "../src/lib/config";
+import { attendanceDefaults } from "../src/lib/attendance";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 // Obviously fictitious, development-only credentials. Also documented only in README.
@@ -66,8 +67,8 @@ async function seed() {
     const configs = {
       SECURITY: securitySchema.parse({}),
       WORK: {
+        attendance: attendanceDefaults,
         pinEnabled: false,
-        breaksPaid: true,
         overnightEnabled: false,
         overnightCarryHours: 8,
         clockOutTimer: "CLOSE",

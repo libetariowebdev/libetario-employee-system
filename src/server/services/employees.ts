@@ -127,6 +127,7 @@ async function reason(tx: Prisma.TransactionClient, value: string) {
   await tx.$queryRaw`SELECT set_config('app.change_reason',${value},true)`;
 }
 async function lockEmployee(tx: Prisma.TransactionClient, id: string) {
+  await tx.$queryRaw`SELECT private.lock_employee_profile(${id}::uuid)`;
   const rows = await tx.$queryRaw<
     { user_id: string; start_date: Date }[]
   >`SELECT user_id,start_date FROM employee_profiles WHERE user_id=${id}::uuid FOR UPDATE`;

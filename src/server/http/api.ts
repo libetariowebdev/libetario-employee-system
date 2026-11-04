@@ -27,6 +27,7 @@ import * as tasks from "../dal/tasks";
 import * as submissions from "../services/submissions";
 import { excludeFile } from "../files/service";
 import { fileApi } from "./files";
+import { attendanceApi } from "./attendance";
 const idSchema = z.uuid();
 const noStore = { "Cache-Control": "private, no-store" };
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
@@ -57,6 +58,7 @@ export async function api(request: Request, path: string[]): Promise<Response> {
   try {
     const key = path.join("/"),
       method = request.method;
+    if (path[0] === "attendance") return attendanceApi(request, path);
     if (
       path[0] === "work" &&
       (path[1] === "files" || (path.length === 4 && path[3] === "files"))
@@ -538,6 +540,11 @@ export async function api(request: Request, path: string[]): Promise<Response> {
         400,
       );
     const code = (e as { code?: string }).code;
+    if (code === "P0409")
+      return json(
+        { error: "Clock Out your current shift before changing duty grants" },
+        409,
+      );
     if (code === "P2002" || code === "23505")
       return json(
         { error: "That identifier or effective date already exists" },

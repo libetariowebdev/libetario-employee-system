@@ -97,7 +97,7 @@ export function workError(e: unknown): never {
     throw new HttpError(404, "Not found");
   if (code === "42501")
     throw new HttpError(403, "Valid work permission required");
-  if(code==='P0413')throw new HttpError(413,'Upload quota exceeded');
+  if (code === "P0413") throw new HttpError(413, "Upload quota exceeded");
   if (["40001", "40P01", "P2034"].includes(code ?? ""))
     throw new HttpError(409, "The record changed; refresh and try again");
   if (["22023", "23514", "23502", "22P02", "22007"].includes(code ?? ""))
@@ -105,7 +105,9 @@ export function workError(e: unknown): never {
       400,
       "Change is not permitted by the current work rules",
     );
-  if (["23505", "23503", "P2002", "P2003"].includes(code ?? ""))
+  if (
+    ["23505", "23503", "23P01", "P0409", "P2002", "P2003"].includes(code ?? "")
+  )
     throw new HttpError(409, "Change conflicts with an existing record");
   throw e;
 }

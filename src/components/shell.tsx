@@ -92,11 +92,14 @@ export function Shell({
               Review submissions
             </Link>
           )}
-          <p className="nav-label later-label">COMING IN LATER PHASES</p>
-          <span className="nav-disabled">
+          <Link
+            href={admin ? "/admin/attendance" : "/work/attendance"}
+            prefetch={false}
+          >
             <CalendarDays size={18} />
-            Time & attendance <small>04</small>
-          </span>
+            Attendance
+          </Link>
+          <p className="nav-label later-label">COMING IN LATER PHASES</p>
           <span className="nav-disabled">
             <FileText size={18} />
             Payroll & payslips <small>05</small>
@@ -106,7 +109,7 @@ export function Shell({
           <div className="phase-label">
             <span>ACCOUNT SECURITY</span>
             <span>
-              PHASE 3B <ArrowUpRight size={12} />
+              PHASE 4A <ArrowUpRight size={12} />
             </span>
           </div>
           <p>
@@ -131,7 +134,7 @@ export function Shell({
           </span>
           <div>
             <span className="timezone">Asia/Manila</span>
-            <span className="pill">PHASE 3B</span>
+            <span className="pill">PHASE 4A</span>
             <span className="avatar small-avatar">
               {name.slice(0, 1).toUpperCase()}
             </span>
