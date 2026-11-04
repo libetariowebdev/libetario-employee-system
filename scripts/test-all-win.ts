@@ -411,10 +411,10 @@ try {
         FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
         WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_prisma_migrations'`)
       ).rows[0];
-      if (row.count !== 41 || !row.secured)
-        throw new Error("Expected 41 RLS-enabled application tables");
+      if (row.count !== 43 || !row.secured)
+        throw new Error("Expected 43 RLS-enabled application tables");
       console.log(
-        "Disposable replay passed with 41 RLS-enabled application tables",
+        "Disposable replay passed with 43 RLS-enabled application tables",
       );
     } finally {
       await db.end();

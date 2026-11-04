@@ -43,13 +43,13 @@ try {
         "SELECT count(*)::int AS n,bool_and(c.relrowsecurity) AS secured FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_prisma_migrations'",
       )
     ).rows[0];
-    if (row.n !== 41 || !row.secured)
+    if (row.n !== 43 || !row.secured)
       throw new Error("Replay schema/RLS mismatch");
   } finally {
     await check.end();
   }
   console.log(
-    "Clean migration replay passed: 41 checkpoint 5a application tables, all protected by RLS.",
+    "Clean migration replay passed: 43 checkpoint 5b application tables, all protected by RLS.",
   );
 } finally {
   // The only drop target is the new, random, empty-of-user-data database created above.

@@ -126,9 +126,13 @@ test("15.8 distinct daily/hourly rates, effective changes and frozen snapshot is
       /Frozen payroll source/,
     );
     assert.equal(
-      (await f.owner.query("SELECT to_regclass('public.payments') AS payments"))
-        .rows[0].payments,
-      null,
+      (
+        await f.owner.query(
+          "SELECT count(*)::int AS payments FROM payments WHERE line_id IN (SELECT id FROM payroll_lines WHERE period_id=$1)",
+          [id],
+        )
+      ).rows[0].payments,
+      0,
     );
   } finally {
     await runtime.end().catch(() => {});

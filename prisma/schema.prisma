@@ -210,6 +210,7 @@ model policy_versions {
   pay_reason                                                            String?
   payroll_items                                                         payroll_items[]
   payroll_periods                                                       payroll_periods[]
+  payments                                                              payments[]
 
   @@unique([policy_key, revision])
   @@index([created_by])
@@ -333,6 +334,8 @@ model users {
   payroll_lines_payroll_lines_created_byTousers                     payroll_lines[]             @relation("payroll_lines_created_byTousers")
   payroll_periods_payroll_periods_approved_byTousers                payroll_periods[]           @relation("payroll_periods_approved_byTousers")
   payroll_periods_payroll_periods_created_byTousers                 payroll_periods[]           @relation("payroll_periods_created_byTousers")
+  payments                                                          payments[]
+  payslips                                                          payslips[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -630,7 +633,8 @@ model file_objects {
   reserved_bytes       BigInt
   size_bytes           BigInt?
   sha256               String?
-  project_id           String            @db.Uuid
+  project_id           String?           @db.Uuid
+  purpose              String            @default("WORK")
   uploaded_by          String            @db.Uuid
   upload_session_id    String            @db.Uuid
   membership_version   Int?
@@ -642,13 +646,14 @@ model file_objects {
   validation_outcome   String?
   validation_version   Int               @default(1)
   bytes_deleted_at     DateTime?         @db.Timestamptz(6)
-  projects             projects          @relation(fields: [project_id], references: [id], onUpdate: NoAction)
+  projects             projects?         @relation(fields: [project_id], references: [id], onUpdate: NoAction)
   sessions             sessions          @relation(fields: [upload_session_id, uploaded_by], references: [id, user_id], onUpdate: NoAction)
   users                users             @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
   policy_versions      policy_versions   @relation(fields: [validation_policy_id], references: [id], onUpdate: NoAction)
   project_files        project_files?
   submission_files     submission_files?
   task_files           task_files?
+  payslips             payslips?
 
   @@index([project_id])
   @@index([state, created_at])
@@ -1065,6 +1070,8 @@ model payroll_lines {
   payroll_periods                                                                      payroll_periods       @relation(fields: [period_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   payroll_lines                                                                        payroll_lines?        @relation("payroll_linesTopayroll_lines", fields: [predecessor_id, period_id, employee_id], references: [id, period_id, employee_id], onDelete: NoAction, onUpdate: NoAction)
   other_payroll_lines                                                                  payroll_lines[]       @relation("payroll_linesTopayroll_lines")
+  payments                                                                             payments?
+  payslips                                                                             payslips[]
 
   @@unique([id, employee_id])
   @@unique([id, period_id, employee_id])
@@ -1072,6 +1079,52 @@ model payroll_lines {
   @@unique([period_id, employee_id], map: "payroll_one_draft", where: raw("(state = 'DRAFT'::text)"))
   @@unique([period_id, employee_id], map: "payroll_one_obligation", where: raw("(state = ANY (ARRAY['APPROVED'::text, 'PAID'::text]))"))
   @@index([employee_id, approved_at(sort: Desc)])
+}
+
+/// SQL migrations define the checks, RLS and immutable ledger.
+model payments {
+  id                   String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  line_id              String          @unique @db.Uuid
+  payment_date         DateTime        @db.Date
+  method               String
+  normalized_reference String
+  amount               Decimal         @db.Decimal(20, 2)
+  reference_policy_id  String          @db.Uuid
+  recorded_by          String          @db.Uuid
+  recorded_at          DateTime        @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  reason               String
+  operation_key        String          @unique @db.Uuid
+  fingerprint          String
+  payroll_lines        payroll_lines   @relation(fields: [line_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  policy_versions      policy_versions @relation(fields: [reference_policy_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                users           @relation(fields: [recorded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payslips             payslips[]
+
+  @@unique([method, normalized_reference])
+  @@unique([id, line_id])
+}
+
+/// SQL migrations define the checks, RLS and deferred typed file ownership.
+model payslips {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  line_id         String        @db.Uuid
+  version         Int
+  reference       String        @unique
+  file_id         String        @unique @db.Uuid
+  event           String
+  payment_id      String?       @db.Uuid
+  issued_by       String        @db.Uuid
+  issued_at       DateTime      @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  line_digest     String
+  template_digest String
+  has_logo        Boolean
+  payroll_lines   payroll_lines @relation(fields: [line_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments        payments?     @relation(fields: [payment_id, line_id], references: [id, line_id], onDelete: NoAction, onUpdate: NoAction)
+  file_objects    file_objects  @relation(fields: [file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users           users         @relation(fields: [issued_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([line_id, version])
+  @@unique([line_id, event])
 }
 
 model payroll_periods {
