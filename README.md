@@ -1,5 +1,9 @@
 # Libetario team workspace — Checkpoint 5b
 
+## Release operations
+
+See the [owner-run release runbook](docs/RELEASE_RUNBOOK.md) for staging, tagged deployments, bootstrap, backup, restore and rollback. Run the [Ubuntu 24.04 and PostgreSQL 18 release verification](docs/RELEASE_EVIDENCE.md) from a full checkout. Checkpoint 6a prepares these tools and templates. Production provisioning and pilot require separate 6b approval.
+
 Standalone employee-management foundation for Libetario Digital Marketing Services. Next.js App Router + TypeScript + Tailwind, PostgreSQL 18, Prisma 7 migrations, Argon2id passwords, persisted account sessions, server authorization and PostgreSQL row-level security.
 
 Real account/profile/rate/schedule management includes encrypted authenticator enrollment, mandatory administrator TOTP, hashed employee PINs, recovery/reset and secure duty authorization/login. The workspace includes projects, shared tasks, immutable submissions/reviews, private files, attendance, task timers, and daily and weekly reports. The database has 34 application tables. Employees need active DUTY for work and attendance; MFA administrators use ACCOUNT without duty. Attendance begins with Clock In. Recording a task timer requires an explicit Start.

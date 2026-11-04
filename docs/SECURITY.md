@@ -1,5 +1,7 @@
 # Phase 2b security, deployment and backup notes
 
+For the current release, use the [release security checklist](RELEASE_SECURITY.md) and [operator runbook](RELEASE_RUNBOOK.md). This document records the earlier 2b checkpoint.
+
 ## Trust boundaries
 
 The application never imports migration credentials. `DATABASE_URL` must authenticate as `libetario_runtime`. That role cannot bypass RLS, own the tables, set the authentication role, read password hashes, read session/reset-token hashes, read throttle rows, delete history, or modify audit/security events. Employee-owned SELECT policies derive the current identity from an active, unexpired, non-revoked session whose authorization version still matches its enabled account. The context is an unguessable session-token hash, not a user ID or role supplied in a request. Transaction-local context is discarded on pooled-connection return.

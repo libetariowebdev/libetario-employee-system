@@ -1,0 +1,20 @@
+# Release security and privacy checklist
+
+## Technical checks
+
+- [ ] Provider and host firewall allow only 22, 80 and 443 inbound TCP. Verify from outside the VPS, including IPv6 if advertised. SSH root/password login is disabled after successful named-user key and sudo checks. Fail2ban, unattended updates, journald rotation and NTP are active.
+- [ ] Next and PostgreSQL listen only on the intended loopback addresses and ports. Staging proxy allowlist rejects an unapproved source. A client-supplied forwarding header cannot set the trusted app IP. Confirm exact HTTPS origin, valid TLS, HTTP redirect, HSTS and app nonce CSP, secure HttpOnly SameSite cookies and private caching.
+- [ ] Run `pnpm release:verify --allow-production` through the intended ops wrapper. Record 43 RLS tables, non-owner runtime/auth grants and unauthenticated default denial. Review SECURITY DEFINER grants and search paths from the migrations and live catalogs. Confirm app roles cannot assume one another or migration ownership, runtime cannot read password/token hashes, auth cannot read payroll/profile data, and audit and finalized records reject direct writes.
+- [ ] Employee A/B checks exercise actual app sessions and restricted SQL. Verify guessed file, payslip and payroll IDs, anonymous and setup-only denial, and immediate duty/account revocation. Reject wrong CSRF origin, HEAD/Range, malformed/oversized uploads, traversal names and stale auth. Check rate limits, immutable approved and paid history, and no public upload mapping. Existing React Flight can carry an indistinguishable not-found result in HTTP 200. Protected APIs return 404 for foreign and missing IDs.
+- [ ] Verify protected paths and owner-only configuration, no real keys in Git or logs, no test artifacts in the tagged release, no fake production accounts and no migration credentials in the web service. Test operator target/flag refusals. Run dependency audit and resolve release-blocking findings.
+- [ ] Test alerts for missed jobs, uptime/certificate, disk/inodes, memory and time drift. Test backup skip while a shift is open and a complete offsite restore with separate keyring. Retain proof without employee data.
+
+## Philippine employee-data review
+
+This checklist is for owner and Philippine privacy/legal review. It is not legal advice. [Philippine Data Privacy Act](https://privacy.gov.ph/data-privacy-act/) · [National Privacy Commission breach reporting](https://privacy.gov.ph/pips-and-pics/breach-reporting/)
+
+- [ ] Inventory identifiers and contacts, employment and schedules, rates, duties, attendance, task contributions and uploaded files, payroll/deduction/adjustment and payment records, PDFs, and auth/audit metadata. Inventory password/recovery hashes and encrypted MFA separately. Limit any sensitive information staff can put in files or free-text fields.
+- [ ] Publish the reviewed employee notice and identify who handles access, correction and other data requests. Document purpose, data minimization, hosting and backup regions, provider access, payroll export handling and incident response. Confirm any applicable assessments, registration and reporting with the owner/adviser.
+- [ ] Review employee own-data access, authorized collaboration, MFA administrator privileges, accountant access, and privileged host/backup operations. Remove access promptly when responsibilities or employment change. Review service-provider agreements and recovery access periodically.
+- [ ] Approve retention by record class and legal hold, with backup expiry aligned. Deactivate accounts and revoke access while retaining required approved time, financial and audit records. Use a reviewed deletion or anonymization procedure for eligible records and corresponding private bytes. Record what was removed and when retained copies expire. Reapply approved deletion decisions after a restore before reopening, where applicable.
+- [ ] Practice incident escalation and evidence preservation. Have the owner/adviser confirm notification thresholds, contacts, timelines and escalation obligations. Keep a named person responsible for backup keys, access reviews and recovery rehearsals.
