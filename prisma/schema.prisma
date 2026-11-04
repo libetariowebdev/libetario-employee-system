@@ -64,22 +64,22 @@ model company_settings {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model credential_resets {
-  id                                                                              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id                                                                         String           @db.Uuid
-  requested_by                                                                    String?          @db.Uuid
-  kind                                                                            String           @default("PASSWORD")
+  id                                                                              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                                                         String            @db.Uuid
+  requested_by                                                                    String?           @db.Uuid
+  kind                                                                            String            @default("PASSWORD")
   verification_note                                                               String
-  token_hash                                                                      String           @unique
-  expires_at                                                                      DateTime         @db.Timestamptz(6)
-  consumed_at                                                                     DateTime?        @db.Timestamptz(6)
-  created_at                                                                      DateTime         @default(now()) @db.Timestamptz(6)
+  token_hash                                                                      String            @unique
+  expires_at                                                                      DateTime          @db.Timestamptz(6)
+  consumed_at                                                                     DateTime?         @db.Timestamptz(6)
+  created_at                                                                      DateTime          @default(now()) @db.Timestamptz(6)
   reason                                                                          String?
-  request_source                                                                  String           @default("ADMIN")
+  request_source                                                                  String            @default("ADMIN")
   operator_reference                                                              String?
-  target_enrollment_id                                                            String?          @db.Uuid
-  users_credential_resets_requested_byTousers                                     users?           @relation("credential_resets_requested_byTousers", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  users_credential_resets_user_idTousers                                          users            @relation("credential_resets_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
-  mfa_enrollments_credential_resets_target_enrollment_id_user_idTomfa_enrollments mfa_enrollments? @relation("credential_resets_target_enrollment_id_user_idTomfa_enrollments", fields: [target_enrollment_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "resets_enrollment_owner")
+  target_enrollment_id                                                            String?           @db.Uuid
+  users_credential_resets_requested_byTousers                                     users?            @relation("credential_resets_requested_byTousers", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users_credential_resets_user_idTousers                                          users             @relation("credential_resets_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+  mfa_enrollments_credential_resets_target_enrollment_id_user_idTomfa_enrollments mfa_enrollments?  @relation("credential_resets_target_enrollment_id_user_idTomfa_enrollments", fields: [target_enrollment_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "resets_enrollment_owner")
   mfa_enrollments_mfa_enrollments_reset_id_user_idTocredential_resets             mfa_enrollments[] @relation("mfa_enrollments_reset_id_user_idTocredential_resets")
   sessions                                                                        sessions[]
 
@@ -111,6 +111,7 @@ model employee_profiles {
   employee_rate_history     employee_rate_history[]
   employee_schedule_history employee_schedule_history[]
   task_assignments          task_assignments[]
+  daily_reports             daily_reports[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -200,6 +201,7 @@ model policy_versions {
   file_objects                                                          file_objects[]
   users                                                                 users                       @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   sessions                                                              sessions[]
+  task_time_segments                                                    task_time_segments[]
 
   @@unique([policy_key, revision])
   @@index([created_by])
@@ -247,7 +249,7 @@ model sessions {
   auth_challenges                                                          auth_challenges[]
   auth_events                                                              auth_events[]
   file_objects                                                             file_objects[]
-  mfa_enrollments_mfa_enrollments_enrollment_session_id_user_idTosessions  mfa_enrollments[]     @relation("mfa_enrollments_enrollment_session_id_user_idTosessions")
+  mfa_enrollments_mfa_enrollments_enrollment_session_id_user_idTosessions  mfa_enrollments[]    @relation("mfa_enrollments_enrollment_session_id_user_idTosessions")
   duty_authorizations                                                      duty_authorizations? @relation(fields: [duty_id, user_id], references: [id, employee_id], onUpdate: NoAction, map: "session_duty_owner")
   credential_resets                                                        credential_resets?   @relation(fields: [reset_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "session_reset_owner")
   mfa_enrollments_sessions_mfa_enrollment_id_user_idTomfa_enrollments      mfa_enrollments?     @relation("sessions_mfa_enrollment_id_user_idTomfa_enrollments", fields: [mfa_enrollment_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "sessions_mfa_owner")
@@ -312,6 +314,10 @@ model users {
   task_submissions                                                  task_submissions[]
   tasks_tasks_created_byTousers                                     tasks[]                     @relation("tasks_created_byTousers")
   tasks_tasks_status_changed_byTousers                              tasks[]                     @relation("tasks_status_changed_byTousers")
+  daily_reports_daily_reports_created_byTousers                     daily_reports[]             @relation("daily_reports_created_byTousers")
+  daily_reports_daily_reports_updated_byTousers                     daily_reports[]             @relation("daily_reports_updated_byTousers")
+  task_segment_adjustments                                          task_segment_adjustments[]
+  task_time_segments                                                task_time_segments[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -353,7 +359,7 @@ model mfa_enrollments {
   auth_challenges                                                                   auth_challenges[]
   credential_resets_credential_resets_target_enrollment_id_user_idTomfa_enrollments credential_resets[] @relation("credential_resets_target_enrollment_id_user_idTomfa_enrollments")
   mfa_enrollments                                                                   mfa_enrollments?    @relation("mfa_enrollmentsTomfa_enrollments", fields: [recovered_from_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "enrollment_recovery_owner")
-  other_mfa_enrollments                                                             mfa_enrollments[]    @relation("mfa_enrollmentsTomfa_enrollments")
+  other_mfa_enrollments                                                             mfa_enrollments[]   @relation("mfa_enrollmentsTomfa_enrollments")
   credential_resets_mfa_enrollments_reset_id_user_idTocredential_resets             credential_resets?  @relation("mfa_enrollments_reset_id_user_idTocredential_resets", fields: [reset_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "enrollment_reset_owner")
   sessions_mfa_enrollments_enrollment_session_id_user_idTosessions                  sessions            @relation("mfa_enrollments_enrollment_session_id_user_idTosessions", fields: [enrollment_session_id, user_id], references: [id, user_id], onUpdate: NoAction, map: "enrollment_session_owner")
   users                                                                             users               @relation(fields: [user_id], references: [id], onUpdate: NoAction)
@@ -498,35 +504,39 @@ model projects {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model task_assignments {
-  id                                                                           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  task_id                                                                      String            @db.Uuid
-  employee_id                                                                  String            @db.Uuid
-  assigned_by                                                                  String            @db.Uuid
-  assigned_at                                                                  DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  assignment_origin                                                            String
-  status                                                                       String            @default("PENDING")
-  status_changed_by                                                            String            @db.Uuid
-  status_changed_at                                                            DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  counts_for_completion                                                        Boolean           @default(true)
-  access_revoked_at                                                            DateTime?         @db.Timestamptz(6)
-  access_revoked_by                                                            String?           @db.Uuid
-  revocation_reason                                                            String?
-  created_at                                                                   DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  updated_at                                                                   DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  version                                                                      Int               @default(1)
-  last_list_seen_at                                                            DateTime?         @db.Timestamptz(6)
-  seen_task_version                                                            Int               @default(0)
-  seen_project_version                                                         Int               @default(0)
-  seen_assignment_version                                                      Int               @default(0)
-  current_submission_id                                                        String?           @db.Uuid
-  task_submissions_task_assignments_current_submission_id_idTotask_submissions task_submissions? @relation("task_assignments_current_submission_id_idTotask_submissions", fields: [current_submission_id, id], references: [id, assignment_id], onUpdate: NoAction, map: "assignment_submission_owner")
-  users_task_assignments_access_revoked_byTousers                              users?            @relation("task_assignments_access_revoked_byTousers", fields: [access_revoked_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  users_task_assignments_assigned_byTousers                                    users             @relation("task_assignments_assigned_byTousers", fields: [assigned_by], references: [id], onUpdate: NoAction)
-  employee_profiles                                                            employee_profiles @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
-  users_task_assignments_status_changed_byTousers                              users             @relation("task_assignments_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
-  tasks                                                                        tasks             @relation(fields: [task_id], references: [id], onUpdate: NoAction)
-  task_submissions_task_submissions_assignment_id_created_byTotask_assignments task_submissions[] @relation("task_submissions_assignment_id_created_byTotask_assignments")
-  task_submissions_task_submissions_assignment_idTotask_assignments            task_submissions[] @relation("task_submissions_assignment_idTotask_assignments")
+  id                                                                                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id                                                                               String                 @db.Uuid
+  employee_id                                                                           String                 @db.Uuid
+  assigned_by                                                                           String                 @db.Uuid
+  assigned_at                                                                           DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  assignment_origin                                                                     String
+  status                                                                                String                 @default("PENDING")
+  status_changed_by                                                                     String                 @db.Uuid
+  status_changed_at                                                                     DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  counts_for_completion                                                                 Boolean                @default(true)
+  access_revoked_at                                                                     DateTime?              @db.Timestamptz(6)
+  access_revoked_by                                                                     String?                @db.Uuid
+  revocation_reason                                                                     String?
+  created_at                                                                            DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                                                                            DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                                                               Int                    @default(1)
+  last_list_seen_at                                                                     DateTime?              @db.Timestamptz(6)
+  seen_task_version                                                                     Int                    @default(0)
+  seen_project_version                                                                  Int                    @default(0)
+  seen_assignment_version                                                               Int                    @default(0)
+  current_submission_id                                                                 String?                @db.Uuid
+  task_submissions_task_assignments_current_submission_id_idTotask_submissions          task_submissions?      @relation("task_assignments_current_submission_id_idTotask_submissions", fields: [current_submission_id, id], references: [id, assignment_id], onUpdate: NoAction, map: "assignment_submission_owner")
+  users_task_assignments_access_revoked_byTousers                                       users?                 @relation("task_assignments_access_revoked_byTousers", fields: [access_revoked_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  users_task_assignments_assigned_byTousers                                             users                  @relation("task_assignments_assigned_byTousers", fields: [assigned_by], references: [id], onUpdate: NoAction)
+  employee_profiles                                                                     employee_profiles      @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
+  users_task_assignments_status_changed_byTousers                                       users                  @relation("task_assignments_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
+  tasks                                                                                 tasks                  @relation(fields: [task_id], references: [id], onUpdate: NoAction)
+  task_submissions_task_submissions_assignment_id_created_byTotask_assignments          task_submissions[]     @relation("task_submissions_assignment_id_created_byTotask_assignments")
+  task_submissions_task_submissions_assignment_idTotask_assignments                     task_submissions[]     @relation("task_submissions_assignment_idTotask_assignments")
+  daily_report_entries_daily_report_entries_assignment_id_employee_idTotask_assignments daily_report_entries[] @relation("daily_report_entries_assignment_id_employee_idTotask_assignments")
+  daily_report_entries_daily_report_entries_assignment_id_task_idTotask_assignments     daily_report_entries[] @relation("daily_report_entries_assignment_id_task_idTotask_assignments")
+  task_time_segments_task_time_segments_assignment_id_employee_idTotask_assignments     task_time_segments[]   @relation("task_time_segments_assignment_id_employee_idTotask_assignments")
+  task_time_segments_task_time_segments_assignment_id_task_idTotask_assignments         task_time_segments[]   @relation("task_time_segments_assignment_id_task_idTotask_assignments")
 
   @@unique([id, employee_id])
   @@unique([id, task_id])
@@ -558,35 +568,37 @@ model task_comments {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model tasks {
-  id                                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  task_number                          String             @unique
-  project_id                           String             @db.Uuid
+  id                                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_number                          String                 @unique
+  project_id                           String                 @db.Uuid
   title                                String
-  instructions                         String             @default("")
-  reference_links                      Json               @default("[]")
-  due_at                               DateTime?          @db.Timestamptz(6)
-  priority                             String             @default("NORMAL")
-  status                               String             @default("PENDING")
+  instructions                         String                 @default("")
+  reference_links                      Json                   @default("[]")
+  due_at                               DateTime?              @db.Timestamptz(6)
+  priority                             String                 @default("NORMAL")
+  status                               String                 @default("PENDING")
   assignment_mode                      String
-  collaboration_mode                   String             @default("SHARED")
-  created_by                           String             @db.Uuid
-  status_changed_by                    String             @db.Uuid
-  status_changed_at                    DateTime           @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  recipient_snapshot_at                DateTime           @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  membership_version                   Int                @default(1)
-  created_at                           DateTime           @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  updated_at                           DateTime           @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  version                              Int                @default(1)
-  creation_key                         String             @db.Uuid
+  collaboration_mode                   String                 @default("SHARED")
+  created_by                           String                 @db.Uuid
+  status_changed_by                    String                 @db.Uuid
+  status_changed_at                    DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  recipient_snapshot_at                DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  membership_version                   Int                    @default(1)
+  created_at                           DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                           DateTime               @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                              Int                    @default(1)
+  creation_key                         String                 @db.Uuid
   creation_fingerprint                 String
   task_assignments                     task_assignments[]
   task_comments                        task_comments[]
   task_files                           task_files[]
-  users_tasks_created_byTousers        users              @relation("tasks_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
-  projects                             projects           @relation(fields: [project_id], references: [id], onUpdate: NoAction)
-  users_tasks_status_changed_byTousers users              @relation("tasks_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
+  users_tasks_created_byTousers        users                  @relation("tasks_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  projects                             projects               @relation(fields: [project_id], references: [id], onUpdate: NoAction)
+  users_tasks_status_changed_byTousers users                  @relation("tasks_status_changed_byTousers", fields: [status_changed_by], references: [id], onUpdate: NoAction)
+  daily_report_entries                 daily_report_entries[]
 
   @@unique([created_by, creation_key])
+  @@unique([id, project_id])
   @@index([created_by])
   @@index([project_id, status, due_at])
   @@index([status_changed_by])
@@ -680,14 +692,15 @@ model task_files {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model task_reviews {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  submission_id    String           @unique @db.Uuid
-  reviewer_id      String           @db.Uuid
-  decision         String
-  reason           String           @default("")
-  reviewed_at      DateTime         @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  users            users            @relation(fields: [reviewer_id], references: [id], onUpdate: NoAction)
-  task_submissions task_submissions @relation(fields: [submission_id], references: [id], onUpdate: NoAction)
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submission_id      String               @unique @db.Uuid
+  reviewer_id        String               @db.Uuid
+  decision           String
+  reason             String               @default("")
+  reviewed_at        DateTime             @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  users              users                @relation(fields: [reviewer_id], references: [id], onUpdate: NoAction)
+  task_submissions   task_submissions     @relation(fields: [submission_id], references: [id], onUpdate: NoAction)
+  task_time_segments task_time_segments[]
 
   @@index([reviewer_id])
 }
@@ -709,7 +722,7 @@ model task_submissions {
   creation_key                                                                 String             @db.Uuid
   creation_fingerprint                                                         String
   submission_files                                                             submission_files[]
-  task_assignments_task_assignments_current_submission_id_idTotask_submissions task_assignments[]  @relation("task_assignments_current_submission_id_idTotask_submissions")
+  task_assignments_task_assignments_current_submission_id_idTotask_submissions task_assignments[] @relation("task_assignments_current_submission_id_idTotask_submissions")
   task_reviews                                                                 task_reviews?
   task_assignments_task_submissions_assignment_id_created_byTotask_assignments task_assignments   @relation("task_submissions_assignment_id_created_byTotask_assignments", fields: [assignment_id, created_by], references: [id, employee_id], onUpdate: NoAction, map: "submission_employee_owner")
   task_assignments_task_submissions_assignment_idTotask_assignments            task_assignments   @relation("task_submissions_assignment_idTotask_assignments", fields: [assignment_id], references: [id], onUpdate: NoAction)
@@ -726,39 +739,40 @@ model task_submissions {
 /// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model attendance_adjustments {
-  id                                                                                           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employee_id                                                                                  String              @db.Uuid
-  duty_id                                                                                      String              @db.Uuid
+  id                                                                                           String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id                                                                                  String                     @db.Uuid
+  duty_id                                                                                      String                     @db.Uuid
   kind                                                                                         String
-  target_shift_id                                                                              String?             @db.Uuid
-  requested_by                                                                                 String              @db.Uuid
+  target_shift_id                                                                              String?                    @db.Uuid
+  requested_by                                                                                 String                     @db.Uuid
   reason                                                                                       String
   target_version                                                                               Int?
   original_values                                                                              Json
   proposed_values                                                                              Json
   grant_snapshot                                                                               Json
-  status                                                                                       String              @default("PENDING")
-  reviewed_by                                                                                  String?             @db.Uuid
-  reviewed_at                                                                                  DateTime?           @db.Timestamptz(6)
+  status                                                                                       String                     @default("PENDING")
+  reviewed_by                                                                                  String?                    @db.Uuid
+  reviewed_at                                                                                  DateTime?                  @db.Timestamptz(6)
   review_reason                                                                                String?
-  applied_shift_id                                                                             String?             @db.Uuid
+  applied_shift_id                                                                             String?                    @db.Uuid
   applied_before                                                                               Json?
   applied_after                                                                                Json?
-  request_key                                                                                  String              @db.Uuid
+  request_key                                                                                  String                     @db.Uuid
   fingerprint                                                                                  String
-  created_at                                                                                   DateTime            @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  version                                                                                      Int                 @default(1)
-  review_key                                                                                   String?             @db.Uuid
+  created_at                                                                                   DateTime                   @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                                                                      Int                        @default(1)
+  review_key                                                                                   String?                    @db.Uuid
   review_fingerprint                                                                           String?
-  attendance_shifts_attendance_adjustments_applied_shift_id_employee_idToattendance_shifts     attendance_shifts?  @relation("attendance_adjustments_applied_shift_id_employee_idToattendance_shifts", fields: [applied_shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
-  duty_authorizations                                                                          duty_authorizations @relation(fields: [duty_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
-  employee_profiles                                                                            employee_profiles   @relation(fields: [employee_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
-  users_attendance_adjustments_requested_byTousers                                             users               @relation("attendance_adjustments_requested_byTousers", fields: [requested_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users_attendance_adjustments_reviewed_byTousers                                              users?              @relation("attendance_adjustments_reviewed_byTousers", fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  attendance_shifts_attendance_adjustments_target_shift_id_employee_idToattendance_shifts      attendance_shifts?  @relation("attendance_adjustments_target_shift_id_employee_idToattendance_shifts", fields: [target_shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
-  attendance_breaks_attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments   attendance_breaks[] @relation("attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments")
-  attendance_breaks_attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments attendance_breaks[] @relation("attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments")
-  attendance_shifts_attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments attendance_shifts[]  @relation("attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments")
+  attendance_shifts_attendance_adjustments_applied_shift_id_employee_idToattendance_shifts     attendance_shifts?         @relation("attendance_adjustments_applied_shift_id_employee_idToattendance_shifts", fields: [applied_shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  duty_authorizations                                                                          duty_authorizations        @relation(fields: [duty_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  employee_profiles                                                                            employee_profiles          @relation(fields: [employee_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  users_attendance_adjustments_requested_byTousers                                             users                      @relation("attendance_adjustments_requested_byTousers", fields: [requested_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_attendance_adjustments_reviewed_byTousers                                              users?                     @relation("attendance_adjustments_reviewed_byTousers", fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_shifts_attendance_adjustments_target_shift_id_employee_idToattendance_shifts      attendance_shifts?         @relation("attendance_adjustments_target_shift_id_employee_idToattendance_shifts", fields: [target_shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_breaks_attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments   attendance_breaks[]        @relation("attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments")
+  attendance_breaks_attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments attendance_breaks[]        @relation("attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments")
+  attendance_shifts_attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments attendance_shifts[]        @relation("attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments")
+  task_segment_adjustments                                                                     task_segment_adjustments[]
 
   @@unique([id, employee_id])
   @@unique([requested_by, request_key])
@@ -863,7 +877,7 @@ model attendance_shifts {
   updated_at                                                                                        DateTime                   @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
   version                                                                                           Int                        @default(1)
   attendance_adjustments_attendance_adjustments_applied_shift_id_employee_idToattendance_shifts     attendance_adjustments[]   @relation("attendance_adjustments_applied_shift_id_employee_idToattendance_shifts")
-  attendance_adjustments_attendance_adjustments_target_shift_id_employee_idToattendance_shifts      attendance_adjustments[]    @relation("attendance_adjustments_target_shift_id_employee_idToattendance_shifts")
+  attendance_adjustments_attendance_adjustments_target_shift_id_employee_idToattendance_shifts      attendance_adjustments[]   @relation("attendance_adjustments_target_shift_id_employee_idToattendance_shifts")
   attendance_breaks                                                                                 attendance_breaks[]
   users_attendance_shifts_closed_byTousers                                                          users?                     @relation("attendance_shifts_closed_byTousers", fields: [closed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   duty_authorizations                                                                               duty_authorizations        @relation(fields: [duty_id, employee_id, duty_date], references: [id, employee_id, duty_date], onUpdate: NoAction)
@@ -873,6 +887,7 @@ model attendance_shifts {
   employee_schedule_history                                                                         employee_schedule_history? @relation(fields: [schedule_id, employee_id], references: [id, employee_id], onUpdate: NoAction)
   employee_schedule_days                                                                            employee_schedule_days?    @relation(fields: [schedule_id, weekday], references: [schedule_id, weekday], onDelete: Restrict, onUpdate: NoAction)
   attendance_adjustments_attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments attendance_adjustments?    @relation("attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments", fields: [origin_adjustment_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction, map: "shift_correction_origin")
+  task_time_segments                                                                                task_time_segments[]
 
   @@unique([duty_id, shift_number])
   @@unique([employee_id, clock_in_key])
@@ -900,4 +915,122 @@ enum RateBasis {
 enum Role {
   ADMINISTRATOR
   EMPLOYEE
+}
+
+model daily_reports {
+  id                                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id                           String                 @db.Uuid
+  report_date                           DateTime               @db.Date
+  work_in_progress                      String                 @default("")
+  issues                                String                 @default("")
+  notes                                 String                 @default("")
+  next_steps                            String                 @default("")
+  state                                 String                 @default("DRAFT")
+  submitted_at                          DateTime?              @db.Timestamptz(6)
+  created_by                            String                 @db.Uuid
+  updated_by                            String                 @db.Uuid
+  created_at                            DateTime               @db.Timestamptz(6)
+  updated_at                            DateTime               @db.Timestamptz(6)
+  version                               Int                    @default(1)
+  operation_receipts                    Json                   @default("{}")
+  daily_report_entries                  daily_report_entries[]
+  users_daily_reports_created_byTousers users                  @relation("daily_reports_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  employee_profiles                     employee_profiles      @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
+  users_daily_reports_updated_byTousers users                  @relation("daily_reports_updated_byTousers", fields: [updated_by], references: [id], onUpdate: NoAction)
+
+  @@unique([employee_id, report_date])
+  @@unique([id, employee_id])
+  @@index([report_date, employee_id], map: "daily_reports_by_date")
+}
+
+model daily_report_entries {
+  id                                                                                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id                                                                         String           @db.Uuid
+  employee_id                                                                       String           @db.Uuid
+  assignment_id                                                                     String           @db.Uuid
+  task_id                                                                           String           @db.Uuid
+  project_id                                                                        String           @db.Uuid
+  description                                                                       String
+  reported_complete                                                                 Boolean          @default(false)
+  included                                                                          Boolean          @default(true)
+  task_label                                                                        String
+  project_label                                                                     String
+  captured_status                                                                   String
+  created_at                                                                        DateTime         @db.Timestamptz(6)
+  updated_at                                                                        DateTime         @db.Timestamptz(6)
+  version                                                                           Int              @default(1)
+  task_assignments_daily_report_entries_assignment_id_employee_idTotask_assignments task_assignments @relation("daily_report_entries_assignment_id_employee_idTotask_assignments", fields: [assignment_id, employee_id], references: [id, employee_id], onUpdate: NoAction)
+  task_assignments_daily_report_entries_assignment_id_task_idTotask_assignments     task_assignments @relation("daily_report_entries_assignment_id_task_idTotask_assignments", fields: [assignment_id, task_id], references: [id, task_id], onUpdate: NoAction)
+  daily_reports                                                                     daily_reports    @relation(fields: [report_id, employee_id], references: [id, employee_id], onUpdate: NoAction)
+  tasks                                                                             tasks            @relation(fields: [task_id, project_id], references: [id, project_id], onUpdate: NoAction)
+
+  @@unique([report_id, assignment_id])
+}
+
+model task_time_segments {
+  id                                                                              String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id                                                                     String                     @unique(map: "time_one_live_root", where: raw("(timer_state = ANY (ARRAY['RUNNING'::text, 'PAUSED'::text]))")) @db.Uuid
+  assignment_id                                                                   String                     @db.Uuid
+  task_id                                                                         String                     @db.Uuid
+  shift_id                                                                        String                     @db.Uuid
+  timer_id                                                                        String                     @db.Uuid
+  segment_sequence                                                                Int
+  timer_state                                                                     String?
+  timer_version                                                                   Int?
+  timer_closed_at                                                                 DateTime?                  @db.Timestamptz(6)
+  timer_close_reason                                                              String?
+  operation_receipts                                                              Json                       @default("{}")
+  kind                                                                            String
+  revision_review_id                                                              String?                    @db.Uuid
+  policy_id                                                                       String                     @db.Uuid
+  task_label                                                                      String
+  project_label                                                                   String
+  recorded_start                                                                  DateTime                   @db.Timestamptz(6)
+  recorded_end                                                                    DateTime?                  @db.Timestamptz(6)
+  started_at                                                                      DateTime                   @db.Timestamptz(6)
+  ended_at                                                                        DateTime?                  @db.Timestamptz(6)
+  ended_by                                                                        String?                    @db.Uuid
+  end_reason                                                                      String?
+  observed_end                                                                    DateTime?                  @db.Timestamptz(6)
+  version                                                                         Int                        @default(1)
+  task_segment_adjustments                                                        task_segment_adjustments[]
+  task_assignments_task_time_segments_assignment_id_employee_idTotask_assignments task_assignments           @relation("task_time_segments_assignment_id_employee_idTotask_assignments", fields: [assignment_id, employee_id], references: [id, employee_id], onUpdate: NoAction)
+  task_assignments_task_time_segments_assignment_id_task_idTotask_assignments     task_assignments           @relation("task_time_segments_assignment_id_task_idTotask_assignments", fields: [assignment_id, task_id], references: [id, task_id], onUpdate: NoAction)
+  users                                                                           users?                     @relation(fields: [ended_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  policy_versions                                                                 policy_versions            @relation(fields: [policy_id], references: [id], onUpdate: NoAction)
+  task_reviews                                                                    task_reviews?              @relation(fields: [revision_review_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  attendance_shifts                                                               attendance_shifts          @relation(fields: [shift_id, employee_id], references: [id, employee_id], onUpdate: NoAction)
+  task_time_segments                                                              task_time_segments         @relation("task_time_segmentsTotask_time_segments", fields: [timer_id, employee_id, assignment_id, shift_id], references: [id, employee_id, assignment_id, shift_id], onUpdate: NoAction)
+  other_task_time_segments                                                        task_time_segments[]       @relation("task_time_segmentsTotask_time_segments")
+
+  @@unique([id, employee_id, assignment_id, shift_id])
+  @@unique([id, employee_id])
+  @@unique([timer_id, segment_sequence])
+  @@index([assignment_id, started_at], map: "time_by_assignment")
+  @@index([shift_id, started_at], map: "time_by_shift")
+  @@index([started_at], map: "time_by_start")
+}
+
+model task_segment_adjustments {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  segment_id               String                  @db.Uuid
+  employee_id              String                  @db.Uuid
+  actor_id                 String                  @db.Uuid
+  reason                   String
+  before_start             DateTime                @db.Timestamptz(6)
+  before_end               DateTime                @db.Timestamptz(6)
+  after_start              DateTime                @db.Timestamptz(6)
+  after_end                DateTime                @db.Timestamptz(6)
+  before_version           Int
+  after_version            Int
+  created_at               DateTime                @db.Timestamptz(6)
+  operation_key            String                  @db.Uuid
+  fingerprint              String
+  attendance_adjustment_id String?                 @db.Uuid
+  users                    users                   @relation(fields: [actor_id], references: [id], onUpdate: NoAction)
+  attendance_adjustments   attendance_adjustments? @relation(fields: [attendance_adjustment_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  task_time_segments       task_time_segments      @relation(fields: [segment_id, employee_id], references: [id, employee_id], onUpdate: NoAction)
+
+  @@unique([actor_id, operation_key])
+  @@unique([segment_id, after_version])
 }
