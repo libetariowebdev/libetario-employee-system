@@ -9,8 +9,8 @@ import { mutateDuty } from "../src/server/services/duty";
 import { workSession } from "../src/server/dal/work";
 import { createProject, createTask } from "../src/server/services/work";
 import { openSecret, otp } from "../src/lib/mfa-crypto";
-export async function workFixture() {
-  const f = await dutyFixture();
+export async function workFixture(date?: string) {
+  const f = await dutyFixture(date);
   try {
     const c = randomUUID(),
       ctoken = digest(randomUUID());

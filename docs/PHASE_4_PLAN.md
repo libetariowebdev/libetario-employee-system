@@ -1,6 +1,6 @@
 # Phase 4 plan — Time, attendance and work reports
 
-Status: **APPROVED for checkpoint 4a ONLY, with owner amendments, 4 November 2026. 4b requires separate acceptance.**
+Status: **Checkpoint 4a accepted. Checkpoint 4b approved for implementation under the existing amendments. Phase 5 requires separate approval.**
 
 Prepared 4 November 2026, Asia/Manila. Sources: BLUEPRINT.md Sections 7, 8, 11, 12, 14 and 15; the original time-schema design in PHASE_1_PLAN.md; accepted Phase 2 duty semantics; accepted Phase 3b; the owner's Phase 4 instructions. Baseline: **27 application tables, 33 migrations and 143 accepted tests**.
 
@@ -11,7 +11,7 @@ Prepared 4 November 2026, Asia/Manila. Sources: BLUEPRINT.md Sections 7, 8, 11, 
 | **4a**                      | Clock In/Out, explicit breaks, missing-punch/long-shift flags, employee correction requests, administrator correction decisions and shift approval, attendance views | attendance_shifts, attendance_breaks, attendance_adjustments                      |                  **30** |
 | **4b, after 4a acceptance** | Start/pause/resume/stop/switch timers, disputed-segment corrections, live work table, daily reports, daily/weekly task and attendance reports, CSV                   | task_time_segments, task_segment_adjustments, daily_reports, daily_report_entries |                  **34** |
 
-Approval of this plan permits **4a only**. After 4a, run its tests/full regression, update coverage, deliver PHASE_4A_REPORT.md in the established format and stop. Start 4b only after separate acceptance. After 4b, deliver PHASE_4B_REPORT.md and stop before Phase 5. Migrate only each checkpoint's tables; alter existing policies, grants and functions only as needed for that checkpoint.
+The owner accepted 4a and separately approved 4b. After 4b, deliver PHASE_4B_REPORT.md and stop before Phase 5. Migrate only each checkpoint's tables and adjust the existing guarded functions where needed.
 
 No payroll periods/calculations, deductions, paid-day conversion, payslips, payments or financial snapshots. approved_payable_seconds is an explicit attendance-review decision, not an automatic payroll calculation. Hosting stays local; no live client/invoicing connection.
 
@@ -229,4 +229,4 @@ Coverage bookkeeping correction: the current 3b TEST_COVERAGE.md labels 15.6 as 
 
 **4b after acceptance:** (1) four tables and logical timer constraints/RLS; (2) timer/revision/Clock Out/Submit/withdrawal integration; (3) segment corrections; (4) daily reports, live aggregates and CSV; (5) employee/admin/mobile screens and test matrix; (6) full regression/replay/typecheck/build/audit and PHASE_4B_REPORT.md. **Stop before Phase 5.**
 
-Plan review points: seeded break treatment/allowances, multiple shifts, suggested approval/override bounds, session-expiry versus revoke behavior, DUTY-only historical correction access, zero-duration evidence refinement and Section 11 deferrals. Owner amendments above are approved for 4a. Actual implementation/test evidence is reported separately; stop after 4a.
+The owner approved the checkpoint split and the amendments above. See the [4a report](PHASE_4A_REPORT.md) and [4b report](PHASE_4B_REPORT.md) for implementation and test evidence. The checkpoint stops before Phase 5.

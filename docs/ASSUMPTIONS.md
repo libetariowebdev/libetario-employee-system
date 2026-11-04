@@ -1,14 +1,14 @@
 # Configurable policy defaults and open decisions
 
-Status: Phases 1, 2, 3a and 3b are owner-accepted. Phase 4 plan is approved for **4a ONLY**, with amendments dated 4 November 2026. Stop for acceptance before 4b.
+Phases 1 through checkpoint 4a are owner-accepted. Checkpoint 4b is implemented and awaits acceptance. Phase 5 requires separate approval.
 
 ## Approved Phase 4a amendments — checkpoint implemented
 
-The following approved amendments supersede historical proposals below. 4a adds three attendance tables (30 total); 4b stays deferred (34 planned). No timer/report/payroll implementation is authorized at 4a.
+The following approved amendments supersede historical proposals below. 4a added three attendance tables. 4b adds four timer and reporting tables, bringing the total to 34.
 
 Locking amendment: start with per-employee user-row locks in the existing policy -> users/session/duty -> parents -> shifts -> breaks -> adjustments order. Real PostgreSQL/HTTP revoke/punch, break/Clock Out, double Clock In and correction/punch races pass with these employee locks; no new global time-coordination gate was added. The existing shared/exclusive WORK/security policy lock remains. Per-action operation keys/fingerprints prevent duplicates/retries; no timer receipt ceiling or terminal-receipt design.
 
-Checkpoint 4a implements validated versioned WORK.attendance; WORK.timers / WORK.reports remain 4b design only. Policy changes require recent administrator MFA, expected policy ID and 10–2,000 character reason. Preserve unrelated WORK/tasks/uploads/overnight and all SECURITY settings. Snapshot schedule/grant/policy on new records; no silent retroactive reinterpretation. Ownership, current DUTY for punches, server timestamps, no-overlap and mandatory review/audit cannot be disabled through settings.
+Versioned WORK.attendance, WORK.timers and WORK.reports are validated in the service and database. Changes require recent administrator MFA, the expected policy ID and a 10–2,000 character reason. Unrelated settings are preserved. New records capture the applicable schedule, grant and policy. Ownership, current DUTY, trusted timestamps, interval exclusions and audit requirements are fixed.
 
 | Policy / proposed key             | Concrete default / supported behavior                                                                                                                                                                                                                                                                                                                                                                                                              |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -39,7 +39,7 @@ Checkpoint 4a implements validated versioned WORK.attendance; WORK.timers / WORK
 
 Switching DUTY to a different grant while an old valid shift is open requires explicit old-grant Clock Out before replacing cookies/sessions. Same-grant reauthentication is allowed; expired old shifts reconcile at their boundary. A lost old handle requires administrator closure/review, never backdated login.
 
-Review points are in PHASE_4_PLAN.md. The accepted baseline is 143 tests. Executed 4a results are in PHASE_4A_REPORT.md and TEST_COVERAGE.md; 4b remains unimplemented. That plan also records the legacy coverage-label correction: Blueprint 15.6 is Clock Out and 15.7 is attendance/task gap, not revision/weekly payroll.
+The [Phase 4 plan](PHASE_4_PLAN.md) records the review points. The [4a report](PHASE_4A_REPORT.md), [4b report](PHASE_4B_REPORT.md) and [acceptance coverage](TEST_COVERAGE.md) record the executed checks. Blueprint scenario 15.6 covers Clock Out with a running task. Scenario 15.7 covers the attendance and task time gap.
 
 ## Approved Phase 3 additions — 3a and 3b
 

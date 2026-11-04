@@ -12,8 +12,8 @@ import {
   attendanceCommand,
   attendanceDetail,
 } from "../src/server/services/attendance";
-export async function attendanceFixture() {
-  const f = await workFixture();
+export async function attendanceFixture(date?: string) {
+  const f = await workFixture(date);
   for (const who of ["a", "b", "c"] as const) {
     const schedule = (
       await f.owner.query(

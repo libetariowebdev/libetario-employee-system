@@ -28,14 +28,14 @@ export async function restoreClock(c: Client) {
     "CREATE OR REPLACE FUNCTION private.security_now() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path=pg_catalog AS $$SELECT clock_timestamp()$$",
   );
 }
-export async function dutyFixture() {
+export async function dutyFixture(date?: string) {
   const f = await fixture();
   const real = (await f.owner.query("SELECT clock_timestamp() now")).rows[0]
     .now as Date;
   // Future date, safely after real created_at defaults, deterministic Manila boundaries.
-  const day = new Date(real.getTime() + 2 * 86400000)
-      .toISOString()
-      .slice(0, 10),
+  const day =
+      date ??
+      new Date(real.getTime() + 2 * 86400000).toISOString().slice(0, 10),
     now = new Date(day + "T10:00:00+08:00");
   await freeze(f.owner, now);
   await f.owner.query(
