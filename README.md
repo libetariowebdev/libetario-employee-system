@@ -1,4 +1,4 @@
-# Libetario team workspace — Checkpoint 4b
+# Libetario team workspace — Checkpoint 5a
 
 Standalone employee-management foundation for Libetario Digital Marketing Services. Next.js App Router + TypeScript + Tailwind, PostgreSQL 18, Prisma 7 migrations, Argon2id passwords, persisted account sessions, server authorization and PostgreSQL row-level security.
 
@@ -77,7 +77,7 @@ An account with an unconfigured rate or schedule displays an explicit empty stat
 
 ## Projects and shared tasks
 
-To upgrade a checkout that predates private uploads, preserve keys/data, run `pnpm install`, `pnpm db:migrate` and `pnpm db:generate`, migrate the dedicated test database as below, then run `pnpm uploads:init-keys`. That initializer adds a distinct random UPLOAD_VALIDATION_KEY and absolute PRIVATE_UPLOAD_ROOT to each ignored environment file and binds only a SHA-256 verifier in its database. It preserves existing configuration, prints no secret and requires migration-owner/local access. To upgrade an accepted 4a checkout, apply the new migrations and regenerate Prisma, then restart Next. Keep the existing keys and storage. The current schema has 49 migrations and 34 application tables.
+To upgrade a checkout that predates private uploads, preserve keys/data, run `pnpm install`, `pnpm db:migrate` and `pnpm db:generate`, migrate the dedicated test database as below, then run `pnpm uploads:init-keys`. That initializer adds a distinct random UPLOAD_VALIDATION_KEY and absolute PRIVATE_UPLOAD_ROOT to each ignored environment file and binds only a SHA-256 verifier in its database. It preserves existing configuration, prints no secret and requires migration-owner/local access. To upgrade an accepted 4b checkout, apply the new migrations and regenerate Prisma, then restart Next. Keep the existing keys and storage. The current schema has 54 migrations and 41 application tables.
 
 **Administrator:** open Projects, create a project (ACTIVE by default; PLANNING selectable), then open it to create a shared task. Choose INDIVIDUAL, SELECTED or ALL_ACTIVE. ALL_ACTIVE captures enabled ACTIVE employees whose start date has arrived in Manila at creation; later hires/reactivations are never added automatically. Invalid recipients/capacity reject the whole operation. The default 500-recipient cap is editable through the versioned WORK task-capacity form with recent administrator MFA, expected policy ID and a reason. The recipient picker does not silently truncate the eligible directory.
 
@@ -93,7 +93,7 @@ API surface: `/api/work/context`, `projects`, `projects/:id`, `tasks`, `tasks/:i
 
 Employees with current DUTY access open **Attendance** at /work/attendance, explicitly Clock In, choose a configured break code, End break and Clock Out. Sign-in never clocks in. Clock Out ends an open break at the same trusted instant. Multiple adjacent shifts are supported; overlapping shifts/breaks are forbidden in PostgreSQL. Times/durations come from the server, with exact fractional seconds and Manila presentation. Use **Refresh & check due records** for a fresh snapshot; the UI does not claim a live client counter. ACCOUNT alone cannot read attendance history or request corrections.
 
-MEAL defaults to unpaid and SHORT to paid. Effective schedule allowances or explicit code allowances are snapshotted. Overages are flagged and never clipped or penalized further. The owner/accountant must confirm treatment and allowances before Phase 5. Missing schedules, zero-duration evidence, lateness, long shifts (>16h), missing Clock Out and system closures need individual review. Task time and attendance stay distinct; there is no gap-based deduction, payroll calculation or rounding in this checkpoint.
+MEAL defaults to unpaid and SHORT to paid. Effective schedule allowances or explicit code allowances are snapshotted. Overages are flagged and never clipped or penalized further. The owner/accountant must confirm treatment and allowances before payroll approval. Missing schedules, zero-duration evidence, lateness, long shifts (>16h), missing Clock Out and system closures need individual review. Payroll uses the explicit attendance review. Task time and the attendance gap remain separate.
 
 MFA administrators use /admin/attendance, select a duty-date range/employee and open a shift. **SUGGESTED** is effective elapsed minus actual unpaid breaks; it is a review aid. Explicitly accept it or override within zero through gross attendance seconds. An override/rejection needs a 10–2,000 character reason; flagged approval also needs acknowledgement and a reason. Review requires MFA verified within five minutes (Account security → Verify recent MFA). Approved seconds remain NULL until approval. Correcting attendance clears the approval while preserving previous review/audit evidence. Bulk preview/approval applies only to clean closed Pending shifts with no flags or pending correction; the displayed exact set/versions must still match at commit. Nothing is approved by previewing.
 
@@ -157,7 +157,7 @@ DUTY access uses a separate opaque cookie, with **30-minute idle** and **maximum
 
 Overnight is **disabled by default**. An administrator with recent MFA may append a WORK policy version permitting it, with a configurable carry ceiling of **1–8 hours** (default eight) after midnight. Each overnight grant still needs an explicit bounded end time; switching work policy does not extend an existing window. A grant first authenticated on its authorized date retains that date/version across Manila midnight and same-grant MFA reauthentication. Non-overnight access expires at midnight. There is no automatic next-date grant or new backdated start. Cleared handles or reset credentials may require fresh account/password login; a new start after the authorized date is denied. Attendance retains the original duty date and exact grant window; grant expiry reconciles open intervals at valid_until. No time is erased at midnight.
 
-Backend connections explicitly use UTC; UI dates and windows use Asia/Manila. Test clock overrides are migration-owner fixtures in the dedicated local test database only, restored in finally. No HTTP field/header or production environment variable can change the clock. Run clock/rotation database tests and HTTP tests sequentially. The current checkpoint report and acceptance map distinguish passed duty-security portions from deferred time/upload/payroll work.
+Backend connections use UTC. UI dates and windows use Asia/Manila. Test clock overrides are migration-owner fixtures in isolated local test databases and restore the clock in finally. HTTP requests and production settings have no clock override. Run clock and key-rotation database tests sequentially with HTTP tests. The acceptance map records which duty, time, upload and payroll cases were verified.
 
 ## Authenticator recovery and second administrator
 
@@ -198,7 +198,17 @@ The initializer creates keys for fresh local environment files; it is not the ro
 
 ## Tests and build
 
-Tests require the dedicated local test database and never run against production or the development database. Keep the database running. For a fresh database, first use the empty-database setup/seed above. On an existing prepared database, apply new test migrations and preserve seeds/data, then run pnpm test in PowerShell:
+For the complete Windows regression, run this from the checkout after installing dependencies:
+
+```powershell
+pnpm test:all:win
+```
+
+The command creates a temporary checkout and two fresh PostgreSQL clusters, each with its own loopback port, credentials, keyring and private upload root. It starts Next on a free loopback port, waits for the login page, and runs the same test commands as `pnpm test` and `pnpm test:http` in that order. The unit database stops before HTTP tests begin. A Windows Job owns the runner's processes. Normal exit removes the temporary files. After a forced interruption, a new invocation creates fresh state. The development database, keys and private bytes are outside the runner's checkout. A normal server may remain open in the main checkout.
+
+Checkpoint 5a verification terminated a run while its disposable database clock was overridden and confirmed all three listeners closed. Two subsequent full invocations each passed 212 tests, closed their listeners and removed their temporary checkouts. [Phase 5a verification](docs/PHASE_5A_REPORT.md)
+
+The existing manual commands use the dedicated `.env.test.local` database. Keep that database running. For a fresh manual-test database, use the empty-database setup and seed above. On an existing prepared database, apply new test migrations and preserve seeds/data, then run `pnpm test` in PowerShell:
 
 ```powershell
 Set-Location -LiteralPath 'C:\Users\Dell\Desktop\Libetario Digital Marketing Services'
@@ -241,7 +251,7 @@ pnpm build
 pnpm audit --prod
 ```
 
-Replay creates a new random database, applies all **49 migrations**, checks **34 RLS-enabled application tables**, and drops only that disposable database. To resume normal development in terminal A:
+Replay creates a new random database, applies all **54 migrations**, checks **41 RLS-enabled application tables**, and drops only that disposable database. To resume normal development in terminal A:
 
 ```powershell
 Remove-Item Env:DOTENV_CONFIG_PATH -ErrorAction SilentlyContinue
@@ -254,4 +264,12 @@ Do not start Next with Node's --env-file flag: this installed version forwards t
 
 `pnpm start` is a production server: production runtime requires an HTTPS `APP_ORIGIN`, appropriate reverse-proxy/TLS setup, and real environment secrets. Use `pnpm dev` for the local HTTP workflow. Passing a build does not authorize deploying real employee data before the duty-security and release gates.
 
-See the [Phase 4b report](docs/PHASE_4B_REPORT.md), [accepted Phase 4a report](docs/PHASE_4A_REPORT.md), [policy defaults](docs/ASSUMPTIONS.md), [security notes](docs/SECURITY.md) and [acceptance coverage](docs/TEST_COVERAGE.md). Phase 5 requires separate owner approval.
+## Weekly payroll (checkpoint 5a)
+
+Sign in as an MFA administrator and open **Payroll → Payroll settings and readiness**. Publish a dated PAY revision with a reason and configure the REGULAR earning type. The readiness page lists each missing setting and what it blocks. Confirm rates and schedules on employee profiles. Configure a Manila cutoff weekday and the payday offset before creating a period. Creating the first period fixes the weekday.
+
+Open a weekly draft with the selected employee roster. The period uses a start-inclusive, end-exclusive range. Review each employee's items and resolve blocking attendance issues. Review exact allocations on shifts with overrides or midnight splits. Use **Account security → Verify recent MFA** for manual items, allocation review, adjustments and approval. Manual earnings and deductions require a reason and an evidence note. A fixed deduction is applied once per week using the applicable catalog revision on the last included date.
+
+After the cutoff, **Approve and freeze payroll** saves the approved items, rates, rules, employee identity and source evidence. Employees can view their own finalized lines under **My payroll** using account sign-in. To correct an unpaid approved line, prepare a replacement or record a void with a reason and evidence. Approving a replacement marks the predecessor ADJUSTED. The 5a checkpoint ends at approval. Payment recording and PDF issuance are checkpoint 5b.
+
+See the [Phase 5a report](docs/PHASE_5A_REPORT.md), [accepted Phase 4b report](docs/PHASE_4B_REPORT.md), [policy assumptions](docs/ASSUMPTIONS.md), [security notes](docs/SECURITY.md) and [acceptance coverage](docs/TEST_COVERAGE.md).

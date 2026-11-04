@@ -1,6 +1,6 @@
-# Acceptance coverage — checkpoint 4b
+# Acceptance coverage — checkpoint 5a
 
-Date: 4 November 2026, Asia/Manila. Checkpoints through 4a are owner-accepted. Checkpoint 4b adds task timers, segment correction, daily reports, live work and CSV. Phase 5 requires separate acceptance.
+Date: 4 November 2026, Asia/Manila. Checkpoints through 4b are owner-accepted. Checkpoint 5a adds payroll policy, weekly drafts, corrections and frozen approval. Checkpoint 5b requires separate acceptance.
 
 ## Section 15 status
 
@@ -13,11 +13,11 @@ Date: 4 November 2026, Asia/Manila. Checkpoints through 4a are owner-accepted. C
 | 15.5 Pause, switch, return another day                         | Pause gaps are excluded. Cross-project Switch is atomic. Another shift uses a new root. Segment exclusions prevent overlaps and exact task totals match recorded intervals.                                                  | **Passed**.                                                                                                            |
 | 15.6 Clock Out with running task                               | Clock Out ends open breaks and running segments together. It also stops paused roots and rejects stale Resume. HTTP Switch/Clock Out preserves the invariant.                                                                | **Passed**.                                                                                                            |
 | 15.7 Attendance 8h and task 6h                                 | The actual PostgreSQL aggregate, HTTP response, rendered report and CSV distinguish 8h gross attendance, 6h task time and a 2h review gap.                                                                                   | **Passed**. Attendance approval remains explicit.                                                                      |
-| 15.8 Distinct rates and frozen pay                             | Exact effective-dated rates and access isolation still pass.                                                                                                                                                                 | **Deferred to Phase 5** for computation and frozen snapshots.                                                          |
-| 15.9 Missed punch and recalculation                            | AMEND_SHIFT, ADD_MISSING_SHIFT and segment correction preserve original evidence. Reviewed combined changes commit together; a stranded or overlapping segment rolls back.                                                   | **Passed for attendance and segment corrections**. Payroll recalculation and finalized adjustments remain Phase 5.     |
-| 15.10 Own finalized PDF only                                   | Private project/task files retain their separate authorization coverage.                                                                                                                                                     | **Deferred to Phase 5** for payslips.                                                                                  |
-| 15.11 Approved versus Paid                                     | Attendance approval remains an explicit record of seconds.                                                                                                                                                                   | **Deferred to Phase 5** for payroll approval and payment.                                                              |
-| 15.12 Overnight, cutoff, missing punches, MFA, uploads, mobile | Running and paused overnight timers retain the original duty date. Manila day, week and year splits sum exactly to the source. Reconciliation caps accrual at the saved boundary. Existing MFA/upload/cutoff tests retained. | **Passed for duty, attendance, timer rollover and upload security**. Wider device and release testing remains Phase 6. |
+| 15.8 Distinct rates and frozen pay | PHP 1,600.00 on the daily fixture and PHP 1,255.00 on the hourly fixture. Mid-week rate and policy selection. Later profile, rate and policy changes preserve frozen JSON and digest. | **Passed for payroll calculation and frozen snapshots.** |
+| 15.9 Missed punch and recalculation | Actual missing-shift request, attendance approval and payroll allocation review. Both approval/correction lock orders. Draft recalculation, unpaid replacement and void preserve evidence. | **Passed for the pre-payment workflow.** Paid correction with the payment ledger is 5b. |
+| 15.10 Own finalized PDF only | A/B isolation for finalized payroll lines in restricted SQL, API, SSR and RSC. Private project/task files retain separate authorization coverage. | **Finalized-line privacy covered.** Payslip PDFs are 5b. |
+| 15.11 Approved versus Paid | Duplicate create and approve races, current MFA and cutoff checks, idempotent retries and immutable approval snapshot. Approval records no payment. | **Passed for approval.** Recording payment once is 5b. |
+| 15.12 Overnight, cutoff, missing punches, MFA, uploads, mobile | Overnight payroll conserves approved override seconds across adjacent Saturday-cutoff weeks. Existing weekend/year cutoff, MFA, upload and mobile-related cases remain in regression. | **Passed for automated cutoff, overnight and missing-punch cases.** Wider device testing remains release work. |
 
 Revision decisions and immutable resubmission remain covered under Phase 3. Timed revision work is linked to its exact review in 4b. The previous 15.6 and 15.7 labels have been corrected to match the blueprint.
 
@@ -47,9 +47,11 @@ Revision decisions and immutable resubmission remain covered under Phase 3. Time
 | tests/integration/work-time.test.ts   |      21 |
 | tests/unit/work-time.test.ts          |       2 |
 | tests/e2e/work-time-http.test.ts      |       7 |
-| **Total**                             | **198** |
+| tests/integration/payroll.test.ts    |      12 |
+| tests/e2e/payroll-http.test.ts        |       2 |
+| **Total**                             | **212** |
 
-The suite retains 168 accepted cases and adds 30 (21 database integration, 2 unit and 7 HTTP). See [PHASE_4B_REPORT.md](PHASE_4B_REPORT.md) for the run totals and local verification. Repeated runs and assertions within a test are counted once.
+The suite retains the 198 accepted 4b cases and adds 12 payroll database integration cases and 2 HTTP cases. Repeated runs and assertions within a test are counted once. [Phase 5a verification](PHASE_5A_REPORT.md)
 
 All database tests use real local PostgreSQL, with restricted non-owner NOBYPASS runtime/auth roles where applicable. HTTP tests use the actual Next server pointed at the dedicated test database. Clock/key/policy fixtures are sequential and restore state in finally. Owner fixtures replace only the dedicated test database's trusted server clock; there is no request-controlled clock. Lock races observe actual blocked PostgreSQL requests before release.
 
@@ -88,8 +90,14 @@ Actor/server timestamp/audit, optimistic versions, retries, reasoned cancel/rest
 - Employee daily reports enforce one date, own current or historical work, versioned drafts and frozen submitted content. Empty/future submissions, foreign assignments and excess entries fail. A meaningful issue or non-work note permits zero entries. Reported completion does not change task approval.
 - Day and week grouping preserves fractional seconds and source versions. The exact 8/6/2-hour gap is tested through HTTP, HTML and CSV. The date cap is tested at 31 days and above. The 50,000-row ceiling is validated in policy, and overflow is exercised with a smaller configured row limit. CSV tests cover quoting, formula markers and a real revoked session between chunks. Live polls and exports leave idle expiry unchanged.
 
+## New 5a evidence
+
+- Exact PHP results use quotient and remainder across modes, units and tie rules. The deterministic property cases compare PostgreSQL to BigInt arithmetic. An explicit NONE choice blocks a non-cent-exact item. Negative net stays visible and blocks approval. Incomplete rules and a changed cutoff weekday are rejected.
+- Manual earnings and deductions preserve before and after values and supporting evidence. Fixed deductions are scoped to an employee or designation. Invalid percentage rules are rejected. A missing-punch correction must receive both attendance approval and payroll allocation review.
+- Real lock waits cover approval racing an attendance correction or a rate edit in both orders. Creation and approval retries produce one canonical outcome. Two rates, policy and rate revisions, and source-shift links are checked against the frozen line. Restricted SQL and employee HTTP/SSR/RSC cannot read a peer line or an own draft.
+
 ## Release checks and boundaries
 
-Clean replay: **49 migrations, exactly 34 RLS-enabled application tables**. Payroll, payslips, monthly/PDF reports and notifications remain later work. Separate TypeScript check, Prisma generation, webpack production build and production dependency advisory audit pass. No known production dependency vulnerabilities were reported at execution time; this is not an enduring guarantee.
+Clean replay applied **54 migrations** and verified exactly **41 RLS-enabled application tables**. Payment recording and payslips are 5b. See the delivery report for the full Windows runner and release check results.
 
 Private bytes and database must be backed up consistently; the MFA keyring remains separately backed up. README contains exact PowerShell commands, test-server environment, the one-Next-server-per-folder limitation, upload key binding/rotation and manual cleanup. Hosting remains local only; host ACL provisioning, real-phone/broader browser testing, owner walkthrough and production backup/restore rehearsal remain release work.

@@ -1,6 +1,21 @@
 # Configurable policy defaults and open decisions
 
-Phases 1 through checkpoint 4a are owner-accepted. Checkpoint 4b is implemented and awaits acceptance. Phase 5 requires separate approval.
+Phases 1 through checkpoint 4b are owner-accepted. Checkpoint 5a passed verification and awaits owner acceptance. Checkpoint 5b requires separate approval.
+
+## Checkpoint 5a payroll policy
+
+These decisions supersede earlier provisional payroll defaults. PAY starts **UNCONFIGURED**. The earlier Monday and HALF_UP values have no effect on payroll readiness. An MFA administrator publishes a reasoned effective-dated revision after confirming the choices with the owner/accountant.
+
+| Decision | Behavior once configured |
+| --- | --- |
+| Basis and source | Select daily or hourly rates and effective schedules per employee. Confirm administrator-approved attendance as the payable source. Confirm captured break treatment. Missing, open, disputed, unapproved and unresolved flagged attendance blocks approval. |
+| Exact allocation and rounding | Review the allocation for an approved override or Manila midnight split. Total allocated seconds must equal the approved total. Decide paid-day eligibility, partial days, minimum pay, lateness, and separate time and money rounding, including explicit NONE. A non-cent-exact item with money rounding set to NONE needs review. A negative net blocks approval. Zero net requires a reviewed no-disbursement decision. |
+| Manual items | Overtime, rest-day, holiday and other premiums, allowances and bonuses take reviewed manual amounts with a reason and supporting evidence. WORK holiday dates are informational. The owner/accountant confirms which manual classifications are applicable. |
+| Deductions | Configure explicit employee or designation applicability, an effective date and a reason. Use fixed or reviewed manual amounts. A fixed amount uses the revision effective on the last included date and applies once per period. The catalog starts empty. Confirm applicable contributions, withholding, loans and other deductions with the accountant. |
+| Cutoff and payday | Choose the start weekday at Manila midnight and the payday offset after the exclusive cutoff. The weekday is fixed once any period exists. Configure payment methods, reference rules and date rules for readiness. Recording payment belongs to 5b. |
+| Corrections after approval | Drafts recalculate from current eligible evidence. Void or replace an unpaid approved line with an audited decision. Confirm with the owner/accountant how to handle a paid correction in a later period. The intended workflow flags the issue and links an explicitly reviewed later-period manual item to the original paid line. The paid ledger and PDF verification belongs to 5b. |
+
+Administrative review and test fixtures are local. No financial calculation uses task time or the attendance-versus-task gap.
 
 ## Approved Phase 4a amendments — checkpoint implemented
 
@@ -192,24 +207,9 @@ All policies below will be persisted in validated, versioned configuration. Chan
 | Attendance versus task time  | Keep totals distinct. Unallocated attendance is a review signal and never an automatic deduction.                                                                                                                                                                                                                                                                      |
 | Uploads                      | Phase 3 default allowlist: PDF, PNG, JPEG, WebP; maximum 10 MiB per file. Validate actual content/signature, filename, size, and authorization. Store privately and quarantine until validated. HTML, SVG, scripts, and executables are not accepted by default.                                                                                                       |
 
-## Payroll policies for later phases
+## Checkpoint 5b payment and archival rules
 
-| Policy                              | Proposed default                                                                                                                                                                                                                                                                              |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Weekly cutoff                       | Monday 00:00 through the following Monday 00:00, Asia/Manila; end is exclusive. Configurable before period creation; cannot redefine a finalized period.                                                                                                                                      |
-| Pay basis                           | DAILY or HOURLY per effective rate record; no default amount and no invented salary.                                                                                                                                                                                                          |
-| Base earnings                       | Use approved attendance only. Hourly amounts use approved payable seconds / 3600 × effective hourly rate. A daily arrangement must select an explicit partial-day rule and expected hours; payroll approval remains blocked until the owner validates its pay policy.                         |
-| Daily partial days                  | UNCONFIGURED, approval blocked until owner/accountant selects prorated or another supported treatment. Do not silently pick a full-day or zero-pay outcome.                                                                                                                                   |
-| Wage/time rounding                  | Preserve recorded time to the second; no rounding of attendance before review. Monetary rounding defaults to decimal half-up at each finalized earning/deduction item to PHP 0.01, then sum items. Configurable and snapshot the selected rule; it is not asserted to be a legal requirement. |
-| Effective-rate boundaries           | Split payable allocations at the applicable Manila effective-date and cutoff boundaries; use the rate valid for each portion. Do not apply today's rate retroactively.                                                                                                                        |
-| Holidays/rest days                  | Calendar and treatment UNCONFIGURED; flag affected payroll for review. No inferred premium or automatic zero/full-day treatment.                                                                                                                                                              |
-| Overtime                            | Requires administrator authorization and an owner/accountant-configured rule. Flag excess hours; do not silently include an invented multiplier or discard recorded hours.                                                                                                                    |
-| Statutory deductions                | Empty configurable deduction catalog; no statutory rates or amounts. Real payroll approval stays blocked until the accountant records the applicable treatment, including an explicit not-applicable decision where justified.                                                                |
-| Bonuses/allowances/other deductions | Explicit administrator-entered, itemized, reasoned adjustments under approved configuration. No automatic unsupported deduction.                                                                                                                                                              |
-| Unresolved time                     | Missing punches, disputed corrections, unsupported overnight/holiday/OT treatment, or missing rates block payroll approval until reviewed.                                                                                                                                                    |
-| Approved versus paid                | Approval freezes the financial snapshot; payment is a separate, audited step with actual date, method, and reference. One recorded full payment per employee payroll line initially. Partial/multiple payments require a later explicit policy and schema/workflow extension.                 |
-| Zero/negative net                   | Block automatic payment recording and require an explicit accountant-reviewed settlement policy. Do not manufacture a positive payment or clamp negative net.                                                                                                                                 |
-| Historical corrections              | Preserve original approved financial content and PDF; create an audited corrective version or adjustment. Never silently recalculate a paid payslip from current settings.                                                                                                                    |
+The payment workflow will require a recorded actual date, method and reference. The intended scope is one full payment for an eligible approved line. The payroll snapshot and each issued PDF remain immutable. The 5a policy section above records the choices that must be configured before payroll approval.
 
 ## Owner/accountant decisions still needed
 
@@ -219,4 +219,4 @@ All policies below will be persisted in validated, versioned configuration. Chan
 - Worker classifications, daily partial-day treatment, breaks, holidays, overtime, deduction applicability, pay cutoff, and rounding approval.
 - Actual logo/contact details for payslips, payment methods, payroll reviewers, privacy/retention rules, backup destinations, and deployment host.
 
-These decisions do not block Phase 1 construction. Unconfigured financial policies block later payroll approval rather than producing an invented payment result.
+Missing financial decisions block payroll approval.
