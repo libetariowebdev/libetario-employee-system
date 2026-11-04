@@ -5,6 +5,8 @@ import {
   readFile,
   writeFile,
   chmod,
+  link,
+  stat,
   lstat,
   mkdir,
   symlink,
@@ -562,6 +564,18 @@ test("filesystem collisions, symlink/junction escape, corrupt/missing bytes and 
     );
     const loc = await locate(f.a, file.id),
       target = await storagePath(loc.storage_key, "objects");
+    if (process.platform !== "win32") {
+      assert.equal((await stat(target)).mode & 0o777, 0o400);
+      const duplicate = target + ".link";
+      await link(target, duplicate);
+      try {
+        await assert.rejects(() =>
+          download(f.a, file.id, new Request("http://local/")),
+        );
+      } finally {
+        await unlink(duplicate);
+      }
+    }
     await chmod(target, 0o600);
     await writeFile(target, Buffer.alloc(Number(loc.size_bytes)));
     await assert.rejects(() =>
@@ -582,8 +596,20 @@ test("filesystem collisions, symlink/junction escape, corrupt/missing bytes and 
     assert.ok(outside.startsWith(path.resolve(".local") + path.sep));
     await mkdir(base);
     await mkdir(outside);
-    await symlink(outside, path.join(base, "quarantine"), "junction");
+    await symlink(
+      outside,
+      path.join(base, "quarantine"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
     try {
+      for (const unsafe of [
+        "//server/share",
+        "\\\\server\\share",
+        "C:relative",
+      ]) {
+        process.env.PRIVATE_UPLOAD_ROOT = unsafe;
+        await assert.rejects(() => storageRoot());
+      }
       process.env.PRIVATE_UPLOAD_ROOT = base;
       await assert.rejects(() => storageRoot());
     } finally {

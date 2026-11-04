@@ -11,6 +11,9 @@ import {
 import { constants } from "node:fs";
 import path from "node:path";
 export class StorageError extends Error {}
+function comparable(file: string) {
+  return process.platform === "win32" ? file.toLowerCase() : file;
+}
 function inside(root: string, target: string) {
   const relative = path.relative(root, target);
   return (
@@ -22,15 +25,16 @@ function inside(root: string, target: string) {
 }
 export function configuredRoot() {
   const input = process.env.PRIVATE_UPLOAD_ROOT;
-  if (!input || !path.isAbsolute(input) || input.startsWith("\\\\"))
+  if (!input || !path.isAbsolute(input) || /^(?:\\\\|\/\/)/.test(input))
     throw new StorageError("Private storage configuration required");
   const root = path.resolve(input),
     cwd = path.resolve(".");
   if (
-    [cwd, path.parse(root).root].includes(root) ||
+    [cwd, path.parse(root).root].map(comparable).includes(comparable(root)) ||
     ["public", "src", ".next", "node_modules"].some(
       (dir) =>
-        root === path.join(cwd, dir) || inside(path.join(cwd, dir), root),
+        comparable(root) === comparable(path.join(cwd, dir)) ||
+        inside(path.join(cwd, dir), root),
     )
   )
     throw new StorageError("Unsafe private storage configuration");
@@ -59,7 +63,7 @@ export async function storageRoot(purpose: StoragePurpose = "work") {
   await mkdir(root, { recursive: true, mode: 0o700 });
   await safeAncestors(root);
   const canonical = await realpath(root);
-  if (canonical.toLowerCase() !== root.toLowerCase())
+  if (comparable(canonical) !== comparable(root))
     throw new StorageError("Unsafe storage root");
   for (const name of areas(purpose)) {
     const dir = path.join(root, name);
@@ -115,7 +119,12 @@ export async function openPrivate(
     constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
   );
   const after = await handle.stat();
-  if (!after.isFile() || after.ino !== before.ino || after.dev !== before.dev) {
+  if (
+    !after.isFile() ||
+    after.nlink !== 1 ||
+    after.ino !== before.ino ||
+    after.dev !== before.dev
+  ) {
     await handle.close();
     throw new StorageError("File changed");
   }

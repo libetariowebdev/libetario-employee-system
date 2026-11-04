@@ -1,1 +1,14 @@
-* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+*.conf text eol=lf
+Caddyfile* text eol=lf
+/deploy/bin/* text eol=lf
+/tests export-ignore
+/prisma/seed.ts export-ignore
+/scripts/qa-fixture.ts export-ignore
+/scripts/qa-work-fixture.ts export-ignore
+/scripts/test-all.ts export-ignore
+/scripts/test-all-win.ps1 export-ignore
+/scripts/test-all-linux.py export-ignore

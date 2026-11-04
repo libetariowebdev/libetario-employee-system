@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import {
   cp,
@@ -18,34 +18,58 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import { forbiddenReleasePath } from "./lib/release-paths.mjs";
 
-if (process.platform !== "win32" || process.arch !== "x64")
-  throw new Error(
-    "This runner requires the project's Windows x64 PostgreSQL distribution",
-  );
-const require = createRequire(import.meta.url);
-const embedded = createRequire(require.resolve("embedded-postgres"));
-const binaries = (await import(
-  pathToFileURL(embedded.resolve("@embedded-postgres/windows-x64")).href
-)) as {
-  initdb: string;
-  postgres: string;
-  pg_ctl: string;
-};
+const windows = process.platform === "win32";
+const linux = process.platform === "linux";
+if ((!windows && !linux) || process.arch !== "x64")
+  throw new Error("The isolated runner requires Windows or Linux x64");
+async function postgresBinaries() {
+  if (windows) {
+    const require = createRequire(import.meta.url);
+    const embedded = createRequire(require.resolve("embedded-postgres"));
+    return (await import(
+      pathToFileURL(embedded.resolve("@embedded-postgres/windows-x64")).href
+    )) as { initdb: string; postgres: string; pg_ctl: string };
+  }
+  const bin = "/usr/lib/postgresql/18/bin";
+  const names = ["initdb", "postgres", "pg_ctl"] as const;
+  for (const name of names)
+    if (!(await lstat(path.join(bin, name)).catch(() => null))?.isFile())
+      throw new Error(
+        "Install the PostgreSQL 18 Linux server and client packages",
+      );
+  return {
+    initdb: bin + "/initdb",
+    postgres: bin + "/postgres",
+    pg_ctl: bin + "/pg_ctl",
+  };
+}
+const binaries = await postgresBinaries();
 const repo = await realpath(process.cwd());
-const temp = await realpath(tmpdir());
-const scratch = await mkdtemp(path.join(temp, "libetario-test-"));
+const temp = await realpath(linux ? "/tmp" : tmpdir());
+const scratch = windows
+  ? await mkdtemp(path.join(temp, "libetario-test-"))
+  : (process.env.LIBETARIO_TEST_SCRATCH ?? "");
 const checkout = path.join(scratch, "checkout");
 const isolated = path.resolve(scratch);
 if (
   path.dirname(isolated) !== temp ||
   !path.basename(isolated).startsWith("libetario-test-") ||
-  isolated.toLowerCase().startsWith(repo.toLowerCase() + path.sep)
+  isolated.toLowerCase().startsWith(repo.toLowerCase() + path.sep) ||
+  (linux &&
+    (!/^libetario-test-[a-z0-9_]+$/.test(path.basename(isolated)) ||
+      process.getuid?.() === 0 ||
+      (await realpath(isolated)) !== isolated ||
+      (await lstat(isolated)).uid !== process.getuid?.() ||
+      ((await lstat(isolated)).mode & 0o077) !== 0))
 ) {
   throw new Error("Unsafe disposable test directory");
 }
 const children = new Set<ChildProcess>();
 const replay = process.argv.includes("--replay");
+const releaseChecks = process.argv.includes("--release-checks");
+if (replay && releaseChecks) throw new Error("Select replay or release checks");
 let interrupted = false;
 let stopping = false;
 
@@ -64,6 +88,12 @@ for (const key of Object.keys(process.env)) {
 }
 env.NEXT_TELEMETRY_DISABLED = "1";
 env.CI = "true";
+if (linux) {
+  env.HOME = path.join(scratch, "home");
+  env.TMPDIR = path.join(scratch, "tmp");
+  await mkdir(env.HOME);
+  await mkdir(env.TMPDIR);
+}
 
 function run(
   executable: string,
@@ -123,6 +153,11 @@ async function stopChildren() {
     [...children].map((child) => {
       if (!child.pid || child.exitCode !== null || child.signalCode !== null)
         return;
+      if (linux) {
+        // The supervisor owns the entire Linux process group, including workers.
+        child.kill("SIGTERM");
+        return;
+      }
       return new Promise<void>((resolve) => {
         const kill = spawn(
           path.join(
@@ -144,6 +179,7 @@ async function cleanup() {
   if (stopping) return;
   stopping = true;
   await stopChildren();
+  if (linux) return; // The supervisor reaps the process group before removing files.
   // The node_modules junction must be detached before recursive cleanup.
   const deps = path.join(checkout, "node_modules");
   if ((await lstat(deps).catch(() => null))?.isSymbolicLink()) {
@@ -168,7 +204,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 async function copySources() {
   await mkdir(checkout);
-  for (const name of [
+  const roots = [
     "src",
     "prisma",
     "scripts",
@@ -182,28 +218,62 @@ async function copySources() {
     "next.config.ts",
     "postcss.config.mjs",
     "prisma.config.ts",
-  ]) {
-    const input = path.join(repo, name);
-    if (!(await lstat(input).catch(() => null))) continue;
-    await cp(input, path.join(checkout, name), {
-      recursive: true,
-      filter: async (source) => {
-        const stat = await lstat(source);
-        if (stat.isSymbolicLink())
-          throw new Error(
-            "Linked source is not allowed in the disposable checkout",
-          );
-        return (
-          !/^\.env(?:\.|$)/.test(path.basename(source)) &&
-          ![".local", "generated"].includes(path.basename(source))
+  ];
+  if (linux) {
+    const tracked = execFileSync("git", ["ls-files", "--cached", "-z"], {
+      cwd: repo,
+      env,
+      encoding: "utf8",
+    })
+      .split("\0")
+      .filter(Boolean);
+    if (tracked.some((file) => forbiddenReleasePath(file)))
+      throw new Error(
+        "Remove forbidden tracked paths before running the release tests",
+      );
+    for (const file of tracked) {
+      const parts = file.split("/");
+      if (!roots.includes(parts[0]) || parts.includes("generated")) continue;
+      const source = path.join(repo, ...parts);
+      const target = path.join(checkout, ...parts);
+      if (
+        (await realpath(source)) !== source ||
+        !(await lstat(source)).isFile()
+      )
+        throw new Error(
+          "Linked source is not allowed in the disposable checkout",
         );
-      },
-    });
+      await mkdir(path.dirname(target), { recursive: true });
+      await cp(source, target);
+    }
+  } else {
+    for (const name of roots) {
+      const input = path.join(repo, name);
+      if (!(await lstat(input).catch(() => null))) continue;
+      await cp(input, path.join(checkout, name), {
+        recursive: true,
+        filter: async (source) => {
+          const stat = await lstat(source);
+          if (stat.isSymbolicLink())
+            throw new Error(
+              "Linked source is not allowed in the disposable checkout",
+            );
+          return (
+            !/^\.env/i.test(path.basename(source)) &&
+            path.basename(source) !== "generated" &&
+            !forbiddenReleasePath(
+              path.relative(repo, source).replaceAll("\\", "/"),
+              stat.isDirectory(),
+            )
+          );
+        },
+      });
+    }
   }
   await symlink(
     await realpath(path.join(repo, "node_modules")),
     path.join(checkout, "node_modules"),
-    "junction",
+    windows ? "junction" : "dir",
   );
   await mkdir(path.join(checkout, ".local"));
 }
@@ -247,6 +317,7 @@ async function provision(name: string, origin: string) {
       String(port),
       "-c",
       "shared_buffers=32MB",
+      ...(linux ? ["-c", "unix_socket_directories="] : []),
     ],
     env,
     true,
@@ -383,6 +454,7 @@ async function waitForServer(
 }
 
 async function suite(name: "test" | "test:http", stageEnv: NodeJS.ProcessEnv) {
+  if (linux) return command("pnpm", [name], stageEnv);
   const { scripts } = JSON.parse(
     await readFile(path.join(checkout, "package.json"), "utf8"),
   ) as {
@@ -419,6 +491,26 @@ try {
     } finally {
       await db.end();
     }
+  } else if (releaseChecks) {
+    await command(
+      process.execPath,
+      ["node_modules/prisma/build/index.js", "generate", "--no-hints"],
+      unit.stageEnv,
+    );
+    await writeFile(path.join(checkout, ".env.test.local"), unit.envText, {
+      mode: 0o600,
+    });
+    await command(
+      process.execPath,
+      [
+        "--conditions=react-server",
+        "--import",
+        "tsx",
+        "--test",
+        "tests/release/backup-gate.test.ts",
+      ],
+      unit.stageEnv,
+    );
   } else {
     const http = await provision("http", origin);
     await command(

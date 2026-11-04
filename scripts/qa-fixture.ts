@@ -1,3 +1,4 @@
+import "./lib/require-local-qa";
 import { fixture } from "../tests/helpers";
 import { writeFile } from "node:fs/promises";
 import { sampleCredentials } from "../prisma/seed";

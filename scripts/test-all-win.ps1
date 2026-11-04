@@ -1,4 +1,4 @@
-param([switch]$Replay)
+param([switch]$Replay, [switch]$ReleaseChecks)
 $ErrorActionPreference = 'Stop'
 
 # A non-inheritable Job handle owned by this PowerShell process closes if the
@@ -40,7 +40,8 @@ public static class LibetarioTestJob {
 }
 '@
 [LibetarioTestJob]::OwnDescendants()
-$arguments = @('--import', 'tsx', 'scripts/test-all-win.ts')
+$arguments = @('--import', 'tsx', 'scripts/test-all.ts')
 if ($Replay) { $arguments += '--replay' }
+if ($ReleaseChecks) { $arguments += '--release-checks' }
 & node @arguments
 exit $LASTEXITCODE

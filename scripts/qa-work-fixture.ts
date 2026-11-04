@@ -1,4 +1,5 @@
 // Disposable local-test identities only. Never imported by request handlers.
+import "./lib/require-local-qa";
 import { fixture } from "../tests/helpers";
 import { sampleCredentials } from "../prisma/seed";
 import { enrollDuty } from "../tests/duty-helpers";

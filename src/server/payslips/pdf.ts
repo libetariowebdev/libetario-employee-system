@@ -67,7 +67,11 @@ async function readLocal(file: string, limit: number) {
     throw new Error("Branding file must be on a local absolute path");
   const full = path.resolve(file);
   const canonical = await realpath(full);
-  if (canonical.toLowerCase() !== full.toLowerCase())
+  if (
+    process.platform === "win32"
+      ? canonical.toLowerCase() !== full.toLowerCase()
+      : canonical !== full
+  )
     throw new Error("Linked branding paths are prohibited");
   const stat = await lstat(full);
   if (
