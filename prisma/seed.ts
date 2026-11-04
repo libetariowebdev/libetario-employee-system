@@ -74,15 +74,7 @@ async function seed() {
         clockOutTimer: "CLOSE",
         maxShiftHours: 16,
       },
-      PAY: {
-        rounding: "HALF_UP",
-        cutoffWeekday: 1,
-        partialDays: "UNCONFIGURED",
-        statutoryTreatment: "UNCONFIGURED",
-        holidays: "UNCONFIGURED",
-        overtime: "REQUIRES_APPROVAL",
-        deductionTypes: [],
-      },
+      PAY: {},
     };
     for (const key of ["SECURITY", "WORK", "PAY"] as const)
       policies[key] = (

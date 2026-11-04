@@ -112,6 +112,8 @@ model employee_profiles {
   employee_schedule_history employee_schedule_history[]
   task_assignments          task_assignments[]
   daily_reports             daily_reports[]
+  deduction_types           deduction_types[]
+  payroll_lines             payroll_lines[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -134,7 +136,9 @@ model employee_rate_history {
   users                  users             @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   employee_profiles      employee_profiles @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
   policy_versions        policy_versions   @relation(fields: [pay_policy_id], references: [id], onUpdate: NoAction)
+  payroll_items          payroll_items[]
 
+  @@unique([id, employee_id])
   @@unique([employee_id, effective_from])
   @@index([created_by])
   @@index([pay_policy_id])
@@ -202,6 +206,10 @@ model policy_versions {
   users                                                                 users                       @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   sessions                                                              sessions[]
   task_time_segments                                                    task_time_segments[]
+  pay_effective_date                                                    DateTime?                   @unique(map: "pay_policy_effective", where: raw("(pay_effective_date IS NOT NULL)")) @db.Date
+  pay_reason                                                            String?
+  payroll_items                                                         payroll_items[]
+  payroll_periods                                                       payroll_periods[]
 
   @@unique([policy_key, revision])
   @@index([created_by])
@@ -318,6 +326,13 @@ model users {
   daily_reports_daily_reports_updated_byTousers                     daily_reports[]             @relation("daily_reports_updated_byTousers")
   task_segment_adjustments                                          task_segment_adjustments[]
   task_time_segments                                                task_time_segments[]
+  deduction_types                                                   deduction_types[]
+  earning_types                                                     earning_types[]
+  payroll_adjustments                                               payroll_adjustments[]
+  payroll_lines_payroll_lines_approved_byTousers                    payroll_lines[]             @relation("payroll_lines_approved_byTousers")
+  payroll_lines_payroll_lines_created_byTousers                     payroll_lines[]             @relation("payroll_lines_created_byTousers")
+  payroll_periods_payroll_periods_approved_byTousers                payroll_periods[]           @relation("payroll_periods_approved_byTousers")
+  payroll_periods_payroll_periods_created_byTousers                 payroll_periods[]           @relation("payroll_periods_created_byTousers")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -888,6 +903,8 @@ model attendance_shifts {
   employee_schedule_days                                                                            employee_schedule_days?    @relation(fields: [schedule_id, weekday], references: [schedule_id, weekday], onDelete: Restrict, onUpdate: NoAction)
   attendance_adjustments_attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments attendance_adjustments?    @relation("attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments", fields: [origin_adjustment_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction, map: "shift_correction_origin")
   task_time_segments                                                                                task_time_segments[]
+  payroll_adjustments                                                                               payroll_adjustments[]
+  payroll_item_attendance                                                                           payroll_item_attendance[]
 
   @@unique([duty_id, shift_number])
   @@unique([employee_id, clock_in_key])
@@ -900,6 +917,186 @@ model attendance_shifts {
   @@index([policy_id])
   @@index([reviewed_by])
   @@index([schedule_id])
+}
+
+model deduction_types {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String
+  revision          Int
+  effective_date    DateTime           @db.Date
+  label             String
+  category          String
+  enabled           Boolean
+  employee_id       String?            @db.Uuid
+  designation       String?
+  rule              Json
+  actor_id          String             @db.Uuid
+  reason            String
+  created_at        DateTime           @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  users             users              @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employee_profiles employee_profiles? @relation(fields: [employee_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  payroll_items     payroll_items[]
+
+  @@unique([code, effective_date])
+  @@unique([code, revision])
+  @@index([employee_id])
+}
+
+model earning_types {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String
+  revision       Int
+  effective_date DateTime        @db.Date
+  label          String
+  category       String
+  enabled        Boolean
+  rule           Json
+  actor_id       String          @db.Uuid
+  reason         String
+  created_at     DateTime        @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  users          users           @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payroll_items  payroll_items[]
+
+  @@unique([code, effective_date])
+  @@unique([code, revision])
+}
+
+model payroll_adjustments {
+  id                                                                             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  line_id                                                                        String               @db.Uuid
+  period_id                                                                      String               @db.Uuid
+  employee_id                                                                    String               @db.Uuid
+  kind                                                                           String
+  source_shift_id                                                                String?              @db.Uuid
+  source_shift_version                                                           Int?
+  source_line_id                                                                 String?              @db.Uuid
+  related_adjustment_id                                                          String?              @unique(map: "payroll_post_once", where: raw("(kind = 'POST_CORRECTION'::text)")) @db.Uuid
+  actor_id                                                                       String               @db.Uuid
+  reason                                                                         String
+  evidence                                                                       String
+  before_values                                                                  Json
+  after_values                                                                   Json
+  operation_key                                                                  String               @db.Uuid
+  fingerprint                                                                    String
+  created_at                                                                     DateTime             @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  users                                                                          users                @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payroll_lines_payroll_adjustments_line_id_period_id_employee_idTopayroll_lines payroll_lines        @relation("payroll_adjustments_line_id_period_id_employee_idTopayroll_lines", fields: [line_id, period_id, employee_id], references: [id, period_id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  payroll_adjustments                                                            payroll_adjustments? @relation("payroll_adjustmentsTopayroll_adjustments", fields: [related_adjustment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_payroll_adjustments                                                      payroll_adjustments? @relation("payroll_adjustmentsTopayroll_adjustments")
+  payroll_lines_payroll_adjustments_source_line_id_employee_idTopayroll_lines    payroll_lines?       @relation("payroll_adjustments_source_line_id_employee_idTopayroll_lines", fields: [source_line_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_shifts                                                              attendance_shifts?   @relation(fields: [source_shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([line_id, operation_key])
+  @@unique([source_shift_id, source_shift_version], map: "payroll_source_review", where: raw("(kind = 'SOURCE'::text)"))
+  @@index([employee_id, created_at])
+  @@index([line_id, kind])
+}
+
+model payroll_item_attendance {
+  item_id           String                   @db.Uuid
+  line_id           String                   @db.Uuid
+  employee_id       String                   @db.Uuid
+  shift_id          String                   @db.Uuid
+  shift_version     Int
+  duty_date         DateTime                 @db.Date
+  service_date      DateTime                 @db.Date
+  bounds            Unsupported("tstzrange")
+  allocated_seconds Decimal                  @db.Decimal(20, 6)
+  evidence          Json
+  payroll_items     payroll_items            @relation(fields: [item_id, line_id, employee_id], references: [id, line_id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_shifts attendance_shifts        @relation(fields: [shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([item_id, shift_id, service_date])
+  @@unique([line_id, shift_id, service_date])
+  @@index([shift_id, service_date])
+}
+
+model payroll_items {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  line_id                 String                    @db.Uuid
+  employee_id             String                    @db.Uuid
+  sequence                Int
+  service_date            DateTime                  @db.Date
+  earning_id              String?                   @db.Uuid
+  deduction_id            String?                   @db.Uuid
+  rate_id                 String?                   @db.Uuid
+  pay_policy_id           String                    @db.Uuid
+  description             String
+  amount                  Decimal                   @db.Decimal(20, 2)
+  detail                  Json
+  payroll_item_attendance payroll_item_attendance[]
+  deduction_types         deduction_types?          @relation(fields: [deduction_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  earning_types           earning_types?            @relation(fields: [earning_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payroll_lines           payroll_lines             @relation(fields: [line_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  policy_versions         policy_versions           @relation(fields: [pay_policy_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employee_rate_history   employee_rate_history?    @relation(fields: [rate_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([id, line_id, employee_id])
+  @@unique([line_id, sequence])
+}
+
+model payroll_lines {
+  id                                                                                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  period_id                                                                            String                @db.Uuid
+  employee_id                                                                          String                @db.Uuid
+  revision                                                                             Int
+  predecessor_id                                                                       String?               @unique(map: "payroll_one_replacement", where: raw("(predecessor_id IS NOT NULL)")) @db.Uuid
+  state                                                                                String                @default("DRAFT")
+  currency                                                                             String                @default("PHP")
+  gross                                                                                Decimal               @default(0) @db.Decimal(20, 2)
+  deductions                                                                           Decimal               @default(0) @db.Decimal(20, 2)
+  net                                                                                  Decimal               @default(0) @db.Decimal(20, 2)
+  issues                                                                               Json                  @default("[]")
+  source_digest                                                                        String?
+  snapshot                                                                             Json?
+  snapshot_digest                                                                      String?
+  created_by                                                                           String                @db.Uuid
+  created_at                                                                           DateTime              @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  approved_by                                                                          String?               @db.Uuid
+  approved_at                                                                          DateTime?             @db.Timestamptz(6)
+  receipts                                                                             Json                  @default("{}")
+  version                                                                              Int                   @default(1)
+  payroll_adjustments_payroll_adjustments_line_id_period_id_employee_idTopayroll_lines payroll_adjustments[] @relation("payroll_adjustments_line_id_period_id_employee_idTopayroll_lines")
+  payroll_adjustments_payroll_adjustments_source_line_id_employee_idTopayroll_lines    payroll_adjustments[] @relation("payroll_adjustments_source_line_id_employee_idTopayroll_lines")
+  payroll_items                                                                        payroll_items[]
+  users_payroll_lines_approved_byTousers                                               users?                @relation("payroll_lines_approved_byTousers", fields: [approved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_payroll_lines_created_byTousers                                                users                 @relation("payroll_lines_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employee_profiles                                                                    employee_profiles     @relation(fields: [employee_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  payroll_periods                                                                      payroll_periods       @relation(fields: [period_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payroll_lines                                                                        payroll_lines?        @relation("payroll_linesTopayroll_lines", fields: [predecessor_id, period_id, employee_id], references: [id, period_id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  other_payroll_lines                                                                  payroll_lines[]       @relation("payroll_linesTopayroll_lines")
+
+  @@unique([id, employee_id])
+  @@unique([id, period_id, employee_id])
+  @@unique([period_id, employee_id, revision])
+  @@unique([period_id, employee_id], map: "payroll_one_draft", where: raw("(state = 'DRAFT'::text)"))
+  @@unique([period_id, employee_id], map: "payroll_one_obligation", where: raw("(state = ANY (ARRAY['APPROVED'::text, 'PAID'::text]))"))
+  @@index([employee_id, approved_at(sort: Desc)])
+}
+
+model payroll_periods {
+  id                                       String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  start_date                               DateTime        @db.Date
+  end_date                                 DateTime        @db.Date
+  payday                                   DateTime        @db.Date
+  cutoff_policy_id                         String          @db.Uuid
+  state                                    String          @default("DRAFT")
+  roster                                   String[]        @db.Uuid
+  created_by                               String          @db.Uuid
+  created_at                               DateTime        @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  approved_by                              String?         @db.Uuid
+  approved_at                              DateTime?       @db.Timestamptz(6)
+  manifest                                 String?
+  receipts                                 Json            @default("{}")
+  version                                  Int             @default(1)
+  create_key                               String          @unique @db.Uuid
+  create_fingerprint                       String
+  payroll_lines                            payroll_lines[]
+  users_payroll_periods_approved_byTousers users?          @relation("payroll_periods_approved_byTousers", fields: [approved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_payroll_periods_created_byTousers  users           @relation("payroll_periods_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  policy_versions                          policy_versions @relation(fields: [cutoff_policy_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([start_date, end_date])
 }
 
 enum EmploymentStatus {
