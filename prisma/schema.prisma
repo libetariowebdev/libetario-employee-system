@@ -103,6 +103,8 @@ model employee_profiles {
   created_at                DateTime                    @default(now()) @db.Timestamptz(6)
   updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
   version                   Int                         @default(1)
+  attendance_adjustments    attendance_adjustments[]
+  attendance_shifts         attendance_shifts[]
   duty_authorizations       duty_authorizations[]
   employee_pins             employee_pins?
   users                     users                       @relation(fields: [user_id], references: [id], onUpdate: NoAction)
@@ -147,6 +149,7 @@ model employee_schedule_days {
   ends_next_day             Boolean                   @default(false)
   paid_break_seconds        Int                       @default(0)
   unpaid_break_seconds      Int                       @default(0)
+  attendance_shifts         attendance_shifts[]
   employee_schedule_history employee_schedule_history @relation(fields: [schedule_id], references: [id], onUpdate: NoAction)
 
   @@id([schedule_id, weekday])
@@ -165,12 +168,14 @@ model employee_schedule_history {
   created_at             DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
   version                Int                      @default(1)
+  attendance_shifts      attendance_shifts[]
   employee_schedule_days employee_schedule_days[]
   users                  users                    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   employee_profiles      employee_profiles        @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
   policy_versions        policy_versions          @relation(fields: [work_policy_id], references: [id], onUpdate: NoAction)
 
   @@unique([employee_id, effective_from])
+  @@unique([id, employee_id], map: "schedule_attendance_parent")
   @@index([created_by])
   @@index([work_policy_id])
 }
@@ -183,6 +188,8 @@ model policy_versions {
   configuration                                                         Json
   created_by                                                            String                      @db.Uuid
   created_at                                                            DateTime                    @default(now()) @db.Timestamptz(6)
+  attendance_breaks                                                     attendance_breaks[]
+  attendance_shifts                                                     attendance_shifts[]
   auth_challenges                                                       auth_challenges[]
   company_settings_company_settings_pay_policy_idTopolicy_versions      company_settings[]          @relation("company_settings_pay_policy_idTopolicy_versions")
   company_settings_company_settings_security_policy_idTopolicy_versions company_settings[]          @relation("company_settings_security_policy_idTopolicy_versions")
@@ -260,46 +267,51 @@ model sessions {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model users {
-  id                                                         String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                                                      String                      @unique
-  username                                                   String                      @unique
-  password_hash                                              String
-  role                                                       Role                        @default(EMPLOYEE)
-  disabled_at                                                DateTime?                   @db.Timestamptz(6)
-  must_change_password                                       Boolean                     @default(true)
-  authorization_version                                      Int                         @default(1)
-  password_changed_at                                        DateTime                    @default(now()) @db.Timestamptz(6)
-  created_at                                                 DateTime                    @default(now()) @db.Timestamptz(6)
-  updated_at                                                 DateTime                    @default(now()) @db.Timestamptz(6)
-  version                                                    Int                         @default(1)
-  audit_log                                                  audit_log[]
-  auth_challenges                                            auth_challenges[]
-  auth_events                                                auth_events[]
-  credential_resets_credential_resets_requested_byTousers    credential_resets[]         @relation("credential_resets_requested_byTousers")
-  credential_resets_credential_resets_user_idTousers         credential_resets[]         @relation("credential_resets_user_idTousers")
-  duty_authorizations_duty_authorizations_granted_byTousers  duty_authorizations[]       @relation("duty_authorizations_granted_byTousers")
-  duty_authorizations_duty_authorizations_revoked_byTousers  duty_authorizations[]       @relation("duty_authorizations_revoked_byTousers")
-  employee_profiles                                          employee_profiles?
-  employee_rate_history                                      employee_rate_history[]
-  employee_schedule_history                                  employee_schedule_history[]
-  file_objects                                               file_objects[]
-  mfa_enrollments                                            mfa_enrollments[]
-  policy_versions                                            policy_versions[]
-  project_files                                              project_files[]
-  projects_projects_created_byTousers                        projects[]                  @relation("projects_created_byTousers")
-  projects_projects_status_changed_byTousers                 projects[]                  @relation("projects_status_changed_byTousers")
-  sessions                                                   sessions[]
-  submission_files_submission_files_excluded_byTousers       submission_files[]          @relation("submission_files_excluded_byTousers")
-  submission_files_submission_files_linked_byTousers         submission_files[]          @relation("submission_files_linked_byTousers")
-  task_assignments_task_assignments_access_revoked_byTousers task_assignments[]          @relation("task_assignments_access_revoked_byTousers")
-  task_assignments_task_assignments_assigned_byTousers       task_assignments[]          @relation("task_assignments_assigned_byTousers")
-  task_assignments_task_assignments_status_changed_byTousers task_assignments[]          @relation("task_assignments_status_changed_byTousers")
-  task_comments                                              task_comments[]
-  task_files                                                 task_files[]
-  task_reviews                                               task_reviews[]
-  task_submissions                                           task_submissions[]
-  tasks_tasks_created_byTousers                              tasks[]                     @relation("tasks_created_byTousers")
-  tasks_tasks_status_changed_byTousers                       tasks[]                     @relation("tasks_status_changed_byTousers")
+  id                                                                String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                                             String                      @unique
+  username                                                          String                      @unique
+  password_hash                                                     String
+  role                                                              Role                        @default(EMPLOYEE)
+  disabled_at                                                       DateTime?                   @db.Timestamptz(6)
+  must_change_password                                              Boolean                     @default(true)
+  authorization_version                                             Int                         @default(1)
+  password_changed_at                                               DateTime                    @default(now()) @db.Timestamptz(6)
+  created_at                                                        DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                                                        DateTime                    @default(now()) @db.Timestamptz(6)
+  version                                                           Int                         @default(1)
+  attendance_adjustments_attendance_adjustments_requested_byTousers attendance_adjustments[]    @relation("attendance_adjustments_requested_byTousers")
+  attendance_adjustments_attendance_adjustments_reviewed_byTousers  attendance_adjustments[]    @relation("attendance_adjustments_reviewed_byTousers")
+  attendance_breaks                                                 attendance_breaks[]
+  attendance_shifts_attendance_shifts_closed_byTousers              attendance_shifts[]         @relation("attendance_shifts_closed_byTousers")
+  attendance_shifts_attendance_shifts_reviewed_byTousers            attendance_shifts[]         @relation("attendance_shifts_reviewed_byTousers")
+  audit_log                                                         audit_log[]
+  auth_challenges                                                   auth_challenges[]
+  auth_events                                                       auth_events[]
+  credential_resets_credential_resets_requested_byTousers           credential_resets[]         @relation("credential_resets_requested_byTousers")
+  credential_resets_credential_resets_user_idTousers                credential_resets[]         @relation("credential_resets_user_idTousers")
+  duty_authorizations_duty_authorizations_granted_byTousers         duty_authorizations[]       @relation("duty_authorizations_granted_byTousers")
+  duty_authorizations_duty_authorizations_revoked_byTousers         duty_authorizations[]       @relation("duty_authorizations_revoked_byTousers")
+  employee_profiles                                                 employee_profiles?
+  employee_rate_history                                             employee_rate_history[]
+  employee_schedule_history                                         employee_schedule_history[]
+  file_objects                                                      file_objects[]
+  mfa_enrollments                                                   mfa_enrollments[]
+  policy_versions                                                   policy_versions[]
+  project_files                                                     project_files[]
+  projects_projects_created_byTousers                               projects[]                  @relation("projects_created_byTousers")
+  projects_projects_status_changed_byTousers                        projects[]                  @relation("projects_status_changed_byTousers")
+  sessions                                                          sessions[]
+  submission_files_submission_files_excluded_byTousers              submission_files[]          @relation("submission_files_excluded_byTousers")
+  submission_files_submission_files_linked_byTousers                submission_files[]          @relation("submission_files_linked_byTousers")
+  task_assignments_task_assignments_access_revoked_byTousers        task_assignments[]          @relation("task_assignments_access_revoked_byTousers")
+  task_assignments_task_assignments_assigned_byTousers              task_assignments[]          @relation("task_assignments_assigned_byTousers")
+  task_assignments_task_assignments_status_changed_byTousers        task_assignments[]          @relation("task_assignments_status_changed_byTousers")
+  task_comments                                                     task_comments[]
+  task_files                                                        task_files[]
+  task_reviews                                                      task_reviews[]
+  task_submissions                                                  task_submissions[]
+  tasks_tasks_created_byTousers                                     tasks[]                     @relation("tasks_created_byTousers")
+  tasks_tasks_status_changed_byTousers                              tasks[]                     @relation("tasks_status_changed_byTousers")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -316,7 +328,7 @@ model employee_pins {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model mfa_enrollments {
   id                                                                                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id                                                                           String @db.Uuid
+  user_id                                                                           String              @db.Uuid
   generation                                                                        Int
   state                                                                             String
   ciphertext                                                                        Bytes?
@@ -351,7 +363,6 @@ model mfa_enrollments {
 
   @@unique([id, user_id])
   @@unique([user_id, generation])
-  @@unique([encryption_key_id, nonce], map: "mfa_nonce_unique", where: raw("(nonce IS NOT NULL)"))
   @@index([enrollment_session_id])
   @@index([recovered_from_id])
   @@index([reset_id])
@@ -413,34 +424,37 @@ model auth_challenges {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model duty_authorizations {
-  id                                          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employee_id                                 String            @db.Uuid
-  duty_date                                   DateTime          @db.Date
+  id                                          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id                                 String                   @db.Uuid
+  duty_date                                   DateTime                 @db.Date
   status                                      String
-  granted_by                                  String            @db.Uuid
-  granted_at                                  DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  revoked_by                                  String?           @db.Uuid
-  revoked_at                                  DateTime?         @db.Timestamptz(6)
+  granted_by                                  String                   @db.Uuid
+  granted_at                                  DateTime                 @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  revoked_by                                  String?                  @db.Uuid
+  revoked_at                                  DateTime?                @db.Timestamptz(6)
   reason                                      String
-  valid_from                                  DateTime          @db.Timestamptz(6)
-  valid_until                                 DateTime          @db.Timestamptz(6)
-  overnight_allowed                           Boolean           @default(false)
-  work_policy_id                              String            @db.Uuid
-  authorization_version                       Int               @default(1)
-  first_authenticated_at                      DateTime?         @db.Timestamptz(6)
+  valid_from                                  DateTime                 @db.Timestamptz(6)
+  valid_until                                 DateTime                 @db.Timestamptz(6)
+  overnight_allowed                           Boolean                  @default(false)
+  work_policy_id                              String                   @db.Uuid
+  authorization_version                       Int                      @default(1)
+  first_authenticated_at                      DateTime?                @db.Timestamptz(6)
   first_auth_version                          Int?
-  created_at                                  DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  updated_at                                  DateTime          @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
-  version                                     Int               @default(1)
+  created_at                                  DateTime                 @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                                  DateTime                 @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                     Int                      @default(1)
+  attendance_adjustments                      attendance_adjustments[]
+  attendance_shifts                           attendance_shifts[]
   auth_challenges                             auth_challenges[]
-  employee_profiles                           employee_profiles @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
-  users_duty_authorizations_granted_byTousers users             @relation("duty_authorizations_granted_byTousers", fields: [granted_by], references: [id], onUpdate: NoAction)
-  users_duty_authorizations_revoked_byTousers users?            @relation("duty_authorizations_revoked_byTousers", fields: [revoked_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  policy_versions                             policy_versions   @relation(fields: [work_policy_id], references: [id], onUpdate: NoAction)
+  employee_profiles                           employee_profiles        @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
+  users_duty_authorizations_granted_byTousers users                    @relation("duty_authorizations_granted_byTousers", fields: [granted_by], references: [id], onUpdate: NoAction)
+  users_duty_authorizations_revoked_byTousers users?                   @relation("duty_authorizations_revoked_byTousers", fields: [revoked_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  policy_versions                             policy_versions          @relation(fields: [work_policy_id], references: [id], onUpdate: NoAction)
   sessions                                    sessions[]
 
   @@unique([employee_id, duty_date])
   @@unique([id, employee_id])
+  @@unique([id, employee_id, duty_date], map: "duty_attendance_parent")
   @@index([duty_date, status])
   @@index([granted_by])
   @@index([revoked_by])
@@ -682,7 +696,7 @@ model task_reviews {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model task_submissions {
   id                                                                           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assignment_id                                                                String @db.Uuid
+  assignment_id                                                                String             @db.Uuid
   revision_number                                                              Int
   state                                                                        String             @default("DRAFT")
   notes                                                                        String             @default("")
@@ -706,6 +720,171 @@ model task_submissions {
   @@unique([id, assignment_id])
   @@index([created_by])
   @@index([state, submitted_at])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model attendance_adjustments {
+  id                                                                                           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id                                                                                  String              @db.Uuid
+  duty_id                                                                                      String              @db.Uuid
+  kind                                                                                         String
+  target_shift_id                                                                              String?             @db.Uuid
+  requested_by                                                                                 String              @db.Uuid
+  reason                                                                                       String
+  target_version                                                                               Int?
+  original_values                                                                              Json
+  proposed_values                                                                              Json
+  grant_snapshot                                                                               Json
+  status                                                                                       String              @default("PENDING")
+  reviewed_by                                                                                  String?             @db.Uuid
+  reviewed_at                                                                                  DateTime?           @db.Timestamptz(6)
+  review_reason                                                                                String?
+  applied_shift_id                                                                             String?             @db.Uuid
+  applied_before                                                                               Json?
+  applied_after                                                                                Json?
+  request_key                                                                                  String              @db.Uuid
+  fingerprint                                                                                  String
+  created_at                                                                                   DateTime            @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                                                                      Int                 @default(1)
+  review_key                                                                                   String?             @db.Uuid
+  review_fingerprint                                                                           String?
+  attendance_shifts_attendance_adjustments_applied_shift_id_employee_idToattendance_shifts     attendance_shifts?  @relation("attendance_adjustments_applied_shift_id_employee_idToattendance_shifts", fields: [applied_shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  duty_authorizations                                                                          duty_authorizations @relation(fields: [duty_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  employee_profiles                                                                            employee_profiles   @relation(fields: [employee_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  users_attendance_adjustments_requested_byTousers                                             users               @relation("attendance_adjustments_requested_byTousers", fields: [requested_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_attendance_adjustments_reviewed_byTousers                                              users?              @relation("attendance_adjustments_reviewed_byTousers", fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_shifts_attendance_adjustments_target_shift_id_employee_idToattendance_shifts      attendance_shifts?  @relation("attendance_adjustments_target_shift_id_employee_idToattendance_shifts", fields: [target_shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_breaks_attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments   attendance_breaks[] @relation("attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments")
+  attendance_breaks_attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments attendance_breaks[] @relation("attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments")
+  attendance_shifts_attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments attendance_shifts[]  @relation("attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments")
+
+  @@unique([id, employee_id])
+  @@unique([requested_by, request_key])
+  @@index([applied_shift_id])
+  @@index([duty_id])
+  @@index([employee_id, created_at])
+  @@index([reviewed_by])
+  @@index([status, created_at])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model attendance_breaks {
+  id                                                                                                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shift_id                                                                                          String                  @db.Uuid
+  employee_id                                                                                       String                  @db.Uuid
+  recorded_start                                                                                    DateTime?               @db.Timestamptz(6)
+  recorded_end                                                                                      DateTime?               @db.Timestamptz(6)
+  started_at                                                                                        DateTime                @db.Timestamptz(6)
+  ended_at                                                                                          DateTime?               @db.Timestamptz(6)
+  code                                                                                              String
+  paid                                                                                              Boolean
+  recorded_code                                                                                     String
+  recorded_paid                                                                                     Boolean
+  allowance_seconds                                                                                 Int?
+  policy_id                                                                                         String                  @db.Uuid
+  source                                                                                            String
+  origin_adjustment_id                                                                              String?                 @db.Uuid
+  last_adjustment_id                                                                                String?                 @db.Uuid
+  is_voided                                                                                         Boolean                 @default(false)
+  end_reason                                                                                        String?
+  ended_by                                                                                          String?                 @db.Uuid
+  start_key                                                                                         String?                 @db.Uuid
+  end_key                                                                                           String?                 @db.Uuid
+  start_fingerprint                                                                                 String?
+  end_fingerprint                                                                                   String?
+  created_at                                                                                        DateTime                @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                                                                                        DateTime                @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                                                                           Int                     @default(1)
+  system_end_at                                                                                     DateTime?               @db.Timestamptz(6)
+  users                                                                                             users?                  @relation(fields: [ended_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_adjustments_attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments   attendance_adjustments? @relation("attendance_breaks_last_adjustment_id_employee_idToattendance_adjustments", fields: [last_adjustment_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_adjustments_attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments attendance_adjustments? @relation("attendance_breaks_origin_adjustment_id_employee_idToattendance_adjustments", fields: [origin_adjustment_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+  policy_versions                                                                                   policy_versions         @relation(fields: [policy_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  attendance_shifts                                                                                 attendance_shifts       @relation(fields: [shift_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([employee_id, end_key])
+  @@unique([employee_id, start_key])
+  @@unique([id, shift_id, employee_id])
+  @@index([employee_id])
+  @@index([ended_by])
+  @@index([last_adjustment_id])
+  @@index([origin_adjustment_id])
+  @@index([policy_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains exclusion constraints and requires additional setup for migrations. Visit https://pris.ly/d/exclusion-constraints for more info.
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model attendance_shifts {
+  id                                                                                                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id                                                                                       String                     @db.Uuid
+  duty_id                                                                                           String                     @db.Uuid
+  duty_authorization_version                                                                        Int
+  duty_date                                                                                         DateTime                   @db.Date
+  grant_from                                                                                        DateTime                   @db.Timestamptz(6)
+  grant_until                                                                                       DateTime                   @db.Timestamptz(6)
+  shift_number                                                                                      Int
+  recorded_in_at                                                                                    DateTime?                  @db.Timestamptz(6)
+  recorded_out_at                                                                                   DateTime?                  @db.Timestamptz(6)
+  system_closed_at                                                                                  DateTime?                  @db.Timestamptz(6)
+  clocked_in_at                                                                                     DateTime                   @db.Timestamptz(6)
+  clocked_out_at                                                                                    DateTime?                  @db.Timestamptz(6)
+  source                                                                                            String
+  close_source                                                                                      String?
+  close_reason                                                                                      String?
+  closed_by                                                                                         String?                    @db.Uuid
+  origin_adjustment_id                                                                              String?                    @db.Uuid
+  policy_id                                                                                         String                     @db.Uuid
+  schedule_id                                                                                       String?                    @db.Uuid
+  weekday                                                                                           Int?
+  policy_snapshot                                                                                   Json
+  schedule_snapshot                                                                                 Json?
+  flags                                                                                             String[]                   @default([])
+  acknowledged_flags                                                                                String[]                   @default([])
+  approval_status                                                                                   String                     @default("PENDING")
+  approved_payable_seconds                                                                          Decimal?                   @db.Decimal(20, 6)
+  suggested_at_review                                                                               Decimal?                   @db.Decimal(20, 6)
+  review_mode                                                                                       String?
+  reviewed_by                                                                                       String?                    @db.Uuid
+  reviewed_at                                                                                       DateTime?                  @db.Timestamptz(6)
+  review_reason                                                                                     String?
+  clock_in_key                                                                                      String?                    @db.Uuid
+  clock_in_fingerprint                                                                              String?
+  clock_out_key                                                                                     String?                    @db.Uuid
+  clock_out_fingerprint                                                                             String?
+  review_receipts                                                                                   Json                       @default("{}")
+  created_at                                                                                        DateTime                   @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  updated_at                                                                                        DateTime                   @default(dbgenerated("private.security_now()")) @db.Timestamptz(6)
+  version                                                                                           Int                        @default(1)
+  attendance_adjustments_attendance_adjustments_applied_shift_id_employee_idToattendance_shifts     attendance_adjustments[]   @relation("attendance_adjustments_applied_shift_id_employee_idToattendance_shifts")
+  attendance_adjustments_attendance_adjustments_target_shift_id_employee_idToattendance_shifts      attendance_adjustments[]    @relation("attendance_adjustments_target_shift_id_employee_idToattendance_shifts")
+  attendance_breaks                                                                                 attendance_breaks[]
+  users_attendance_shifts_closed_byTousers                                                          users?                     @relation("attendance_shifts_closed_byTousers", fields: [closed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  duty_authorizations                                                                               duty_authorizations        @relation(fields: [duty_id, employee_id, duty_date], references: [id, employee_id, duty_date], onUpdate: NoAction)
+  employee_profiles                                                                                 employee_profiles          @relation(fields: [employee_id], references: [user_id], onUpdate: NoAction)
+  policy_versions                                                                                   policy_versions            @relation(fields: [policy_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_attendance_shifts_reviewed_byTousers                                                        users?                     @relation("attendance_shifts_reviewed_byTousers", fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employee_schedule_history                                                                         employee_schedule_history? @relation(fields: [schedule_id, employee_id], references: [id, employee_id], onUpdate: NoAction)
+  employee_schedule_days                                                                            employee_schedule_days?    @relation(fields: [schedule_id, weekday], references: [schedule_id, weekday], onDelete: Restrict, onUpdate: NoAction)
+  attendance_adjustments_attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments attendance_adjustments?    @relation("attendance_shifts_origin_adjustment_id_employee_idToattendance_adjustments", fields: [origin_adjustment_id, employee_id], references: [id, employee_id], onDelete: NoAction, onUpdate: NoAction, map: "shift_correction_origin")
+
+  @@unique([duty_id, shift_number])
+  @@unique([employee_id, clock_in_key])
+  @@unique([employee_id, clock_out_key])
+  @@unique([id, employee_id])
+  @@index([approval_status, duty_date])
+  @@index([closed_by])
+  @@index([duty_date, employee_id])
+  @@index([origin_adjustment_id])
+  @@index([policy_id])
+  @@index([reviewed_by])
+  @@index([schedule_id])
 }
 
 enum EmploymentStatus {
