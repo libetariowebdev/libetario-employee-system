@@ -11,13 +11,27 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import EmbeddedPostgres from "embedded-postgres";
+import { pathToFileURL } from "node:url";
 import pg from "pg";
 
+if (process.platform !== "win32" || process.arch !== "x64")
+  throw new Error(
+    "This runner requires the project's Windows x64 PostgreSQL distribution",
+  );
+const require = createRequire(import.meta.url);
+const embedded = createRequire(require.resolve("embedded-postgres"));
+const binaries = (await import(
+  pathToFileURL(embedded.resolve("@embedded-postgres/windows-x64")).href
+)) as {
+  initdb: string;
+  postgres: string;
+  pg_ctl: string;
+};
 const repo = await realpath(process.cwd());
 const temp = await realpath(tmpdir());
 const scratch = await mkdtemp(path.join(temp, "libetario-test-"));
@@ -31,7 +45,6 @@ if (
   throw new Error("Unsafe disposable test directory");
 }
 const children = new Set<ChildProcess>();
-const clusters: EmbeddedPostgres[] = [];
 const replay = process.argv.includes("--replay");
 let interrupted = false;
 let stopping = false;
@@ -52,12 +65,17 @@ for (const key of Object.keys(process.env)) {
 env.NEXT_TELEMETRY_DISABLED = "1";
 env.CI = "true";
 
-function run(executable: string, args: string[], childEnv = env) {
+function run(
+  executable: string,
+  args: string[],
+  childEnv = env,
+  quiet = false,
+) {
   if (interrupted) throw new Error("Test run interrupted");
   const child = spawn(executable, args, {
     cwd: checkout,
     env: childEnv,
-    stdio: "inherit",
+    stdio: quiet ? "ignore" : "inherit",
     windowsHide: true,
   });
   children.add(child);
@@ -68,8 +86,13 @@ function run(executable: string, args: string[], childEnv = env) {
   return { child, done };
 }
 
-async function command(executable: string, args: string[], childEnv = env) {
-  const code = await run(executable, args, childEnv).done;
+async function command(
+  executable: string,
+  args: string[],
+  childEnv = env,
+  quiet = false,
+) {
+  const code = await run(executable, args, childEnv, quiet).done;
   if (code !== 0) throw new Error(`Isolated command failed (exit ${code})`);
 }
 
@@ -98,7 +121,8 @@ function availablePort(): Promise<number> {
 async function stopChildren() {
   await Promise.all(
     [...children].map((child) => {
-      if (!child.pid || child.exitCode !== null) return;
+      if (!child.pid || child.exitCode !== null || child.signalCode !== null)
+        return;
       return new Promise<void>((resolve) => {
         const kill = spawn(
           path.join(
@@ -120,7 +144,6 @@ async function cleanup() {
   if (stopping) return;
   stopping = true;
   await stopChildren();
-  for (const db of clusters.reverse()) await db.stop().catch(() => {});
   // The node_modules junction must be detached before recursive cleanup.
   const deps = path.join(checkout, "node_modules");
   if ((await lstat(deps).catch(() => null))?.isSymbolicLink()) {
@@ -191,37 +214,69 @@ async function provision(name: string, origin: string) {
   const runtimePassword = randomBytes(32).toString("hex");
   const authPassword = randomBytes(32).toString("hex");
   const key = randomBytes(32).toString("hex");
-  const cluster = new EmbeddedPostgres({
-    databaseDir: path.join(scratch, `pg-${name}`),
-    user: "libetario_migrator",
-    password,
-    port,
-    authMethod: "scram-sha-256",
-    persistent: true,
-    initdbFlags: ["--encoding=UTF8", "--locale=C"],
-    postgresFlags: ["-h", "127.0.0.1"],
-    onLog: (message: string) => {
-      if (replay) {
-        for (const line of message.split("\n")) {
-          const error = line.match(/ERROR:\s+(.*)/)?.[1];
-          if (error && !error.includes("transaction is aborted"))
-            console.error(error);
-        }
-      }
-    },
-    onError: () => {},
-  });
-  clusters.push(cluster);
-  await cluster.initialise();
-  if (interrupted) throw new Error("Test run interrupted");
-  await cluster.start();
-  console.log(`Isolated ${name} PostgreSQL ready on port ${port}`);
+  const directory = path.join(scratch, `pg-${name}`);
+  const passwordFile = path.join(scratch, `init-${name}`);
+  await writeFile(passwordFile, password + "\n", { mode: 0o600, flag: "wx" });
+  try {
+    await command(
+      binaries.initdb,
+      [
+        "--pgdata",
+        directory,
+        "--auth=scram-sha-256",
+        "--username=libetario_migrator",
+        "--pwfile",
+        passwordFile,
+        "--encoding=UTF8",
+        "--locale=C",
+      ],
+      env,
+      true,
+    );
+  } finally {
+    await rm(passwordFile, { force: true });
+  }
+  const database = run(
+    binaries.postgres,
+    [
+      "-D",
+      directory,
+      "-h",
+      "127.0.0.1",
+      "-p",
+      String(port),
+      "-c",
+      "shared_buffers=32MB",
+    ],
+    env,
+    true,
+  );
+  void database.done.catch(() => {});
   const url = (user: string, credential: string, database = "libetario_test") =>
     `postgresql://${user}:${credential}@127.0.0.1:${port}/${database}`;
-  const owner = new pg.Client({
-    connectionString: url("libetario_migrator", password, "postgres"),
-  });
-  await owner.connect();
+  const until = Date.now() + 30_000;
+  let owner: pg.Client | undefined;
+  while (
+    !interrupted &&
+    Date.now() < until &&
+    database.child.exitCode === null &&
+    database.child.signalCode === null
+  ) {
+    const client = new pg.Client({
+      connectionString: url("libetario_migrator", password, "postgres"),
+      connectionTimeoutMillis: 1000,
+    });
+    try {
+      await client.connect();
+      owner = client;
+      break;
+    } catch {
+      await client.end().catch(() => {});
+      await delay(150);
+    }
+  }
+  if (!owner) throw new Error("Disposable PostgreSQL failed readiness");
+  console.log(`Isolated ${name} PostgreSQL ready on port ${port}`);
   try {
     await owner.query(
       `CREATE ROLE libetario_runtime LOGIN PASSWORD '${runtimePassword}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`,
@@ -289,7 +344,7 @@ async function provision(name: string, origin: string) {
       await db.end();
     }
   }
-  return { stageEnv, envText };
+  return { stageEnv, envText, directory };
 }
 
 async function waitForServer(
@@ -390,6 +445,12 @@ try {
     const file = path.join(checkout, ".env.test.local");
     await writeFile(file, unit.envText, { mode: 0o600 });
     await suite("test", unit.stageEnv);
+    await command(
+      binaries.pg_ctl,
+      ["stop", "-D", unit.directory, "-m", "fast", "-w", "-t", "15"],
+      env,
+      true,
+    );
     await writeFile(file, http.envText, { mode: 0o600 });
     await suite("test:http", http.stageEnv);
     console.log("Both isolated test suites passed");
