@@ -610,8 +610,8 @@ test("Manila midnight: default non-overnight expires, explicit overnight carries
     assert.equal(
       (
         await f.owner.query(
-          "SELECT id FROM duty_authorizations WHERE duty_date=$1",
-          [tomorrow],
+          "SELECT id FROM duty_authorizations WHERE duty_date=$1 AND employee_id=ANY($2::uuid[])",
+          [tomorrow, [f.ids.a, f.ids.b]],
         )
       ).rowCount,
       0,

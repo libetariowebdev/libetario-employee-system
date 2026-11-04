@@ -7,6 +7,7 @@ import {
 } from "../duty-helpers";
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { db, authPool } from "../../src/server/db";
 import { digest, csrfForSession } from "../../src/server/auth/security";
@@ -161,6 +162,30 @@ test("HTTP scenario 1: admin activates A, B denied; ACCOUNT cannot reach duty en
     const context = await jsonOK(await get("duty/context", jar));
     assert.equal(context.user_id, f.ids.a);
     assert.equal(context.duty_date.slice(0, 10), f.day);
+    const punched = await post(
+      "attendance/clock-in",
+      jar,
+      csrfForSession(jar.libetario_duty),
+      { operationKey: randomUUID() },
+    );
+    assert.equal(punched.status, 201);
+    const shift = (await punched.json()).id;
+    assert.equal(
+      (
+        await post("attendance/clock-in", b, csrfForSession(f.tokens.b), {
+          operationKey: randomUUID(),
+        })
+      ).status,
+      401,
+    );
+    await jsonOK(
+      await post(
+        `attendance/shifts/${shift}/clock-out`,
+        jar,
+        csrfForSession(jar.libetario_duty),
+        { operationKey: randomUUID(), expectedVersion: 1 },
+      ),
+    );
     const page = await fetch(origin + "/duty/context", {
       headers: { cookie: cookies(jar) },
     });
@@ -709,8 +734,8 @@ test("HTTP midnight and overnight: same duty date survives midnight, idle expiry
     assert.equal(
       (
         await f.owner.query(
-          "SELECT id FROM duty_authorizations WHERE duty_date=$1",
-          [tomorrow],
+          "SELECT id FROM duty_authorizations WHERE duty_date=$1 AND employee_id=ANY($2::uuid[])",
+          [tomorrow, [f.ids.a, f.ids.b]],
         )
       ).rowCount,
       0,
