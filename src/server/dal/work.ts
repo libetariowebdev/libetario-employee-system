@@ -22,6 +22,7 @@ export async function workSession(
   accountToken?: string,
   dutyToken?: string,
   adminOnly = false,
+  touch = true,
 ): Promise<WorkSession> {
   const account =
     accountToken && /^[a-f0-9]{64}$/.test(accountToken)
@@ -52,10 +53,10 @@ export async function workSession(
     throw new HttpError(403, "Administrator access required");
   let token: string;
   if (admin) {
-    await session(accountToken);
+    if (touch) await session(accountToken);
     token = accountToken!;
   } else {
-    await requireDuty(dutyToken);
+    await requireDuty(dutyToken, touch);
     token = dutyToken!;
   }
   const hash = digest(token);

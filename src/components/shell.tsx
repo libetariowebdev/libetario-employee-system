@@ -99,6 +99,28 @@ export function Shell({
             <CalendarDays size={18} />
             Attendance
           </Link>
+          {admin ? (
+            <Link href="/admin/time/live" prefetch={false}>
+              <CalendarDays size={18} />
+              Live work
+            </Link>
+          ) : (
+            <Link href="/work/time" prefetch={false}>
+              <CalendarDays size={18} />
+              Task time
+            </Link>
+          )}
+          <Link
+            href={admin ? "/admin/time/reports" : "/work/time/reports"}
+            prefetch={false}
+          >
+            <FileText size={18} />
+            Time reports
+          </Link>
+          <Link href={admin ? "/admin/daily" : "/work/daily"} prefetch={false}>
+            <FileText size={18} />
+            {admin ? "Daily reports" : "Daily report"}
+          </Link>
           <p className="nav-label later-label">COMING IN LATER PHASES</p>
           <span className="nav-disabled">
             <FileText size={18} />
@@ -109,7 +131,7 @@ export function Shell({
           <div className="phase-label">
             <span>ACCOUNT SECURITY</span>
             <span>
-              PHASE 4A <ArrowUpRight size={12} />
+              PHASE 4B <ArrowUpRight size={12} />
             </span>
           </div>
           <p>
@@ -134,7 +156,7 @@ export function Shell({
           </span>
           <div>
             <span className="timezone">Asia/Manila</span>
-            <span className="pill">PHASE 4A</span>
+            <span className="pill">PHASE 4B</span>
             <span className="avatar small-avatar">
               {name.slice(0, 1).toUpperCase()}
             </span>

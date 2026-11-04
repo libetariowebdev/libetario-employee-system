@@ -22,6 +22,7 @@ import {
 import type { WorkSession } from "@/server/dal/work";
 import { businessDate } from "@/lib/time";
 import { duration } from "@/lib/attendance";
+import { shiftSegments } from "@/server/services/work-time";
 const time = (t: string | null) =>
   t
     ? new Intl.DateTimeFormat("en-PH", {
@@ -153,7 +154,8 @@ export async function AttendanceDetailPage({
       to: s.duty_date,
       ...(w.admin ? { employeeId: s.employee_id } : {}),
     }),
-    current = w.admin ? null : await currentAttendance(w);
+    current = w.admin ? null : await currentAttendance(w),
+    segments = w.admin ? await shiftSegments(w, id) : [];
   return (
     <>
       <div className="page-heading">
@@ -279,6 +281,7 @@ export async function AttendanceDetailPage({
         items={corrections.items.filter((c) => c.target_shift_id === id)}
         csrf={w.csrf}
         admin={w.admin}
+        segments={segments.slice(0, 100)}
       />
     </>
   );

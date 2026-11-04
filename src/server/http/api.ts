@@ -28,6 +28,7 @@ import * as submissions from "../services/submissions";
 import { excludeFile } from "../files/service";
 import { fileApi } from "./files";
 import { attendanceApi } from "./attendance";
+import { timeApi } from "./work-time";
 const idSchema = z.uuid();
 const noStore = { "Cache-Control": "private, no-store" };
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
@@ -64,7 +65,7 @@ export async function api(request: Request, path: string[]): Promise<Response> {
       (path[1] === "files" || (path.length === 4 && path[3] === "files"))
     )
       return fileApi(request, path);
-    const bodyLimit = path[0] === "work" ? 131072 : 32768;
+    const bodyLimit = path[0] === "work" || path[0] === "time" ? 131072 : 32768;
     if (method === "GET" && key === "auth/csrf") {
       const csrf = csrfAnonymous();
       return json({ csrf }, 200, {
@@ -231,6 +232,7 @@ export async function api(request: Request, path: string[]): Promise<Response> {
         );
       return response;
     }
+    if (path[0] === "time") return await timeApi(request, path, body);
     if (path[0] === "work") {
       const w = await workSession(
         cookie(request, "libetario_session"),

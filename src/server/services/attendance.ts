@@ -1,4 +1,5 @@
 import "server-only";
+import { combinedSegmentChange } from "../../lib/work-time";
 import { z } from "zod";
 import {
   attendanceFilters,
@@ -187,6 +188,7 @@ export async function decideAttendanceCorrection(
       expectedVersion: z.number().int().positive(),
       decision: z.enum(["APPROVED", "REJECTED"]),
       reason: attendanceReason,
+      segments: z.array(combinedSegmentChange).max(100).optional(),
     })
     .parse(input);
   return query<string>(

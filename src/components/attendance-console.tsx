@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Decimal from "decimal.js";
 import { mutation } from "./forms";
+import { SegmentFields, segmentFields } from "./time-controls";
+import type { Segment } from "@/server/services/work-time";
 import {
   attendanceLabel,
   duration,
@@ -805,10 +807,12 @@ export function CorrectionCards({
   items,
   csrf,
   admin,
+  segments = [],
 }: {
   items: Correction[];
   csrf: string;
   admin: boolean;
+  segments?: Segment[];
 }) {
   return (
     <section className="work-panel">
@@ -817,7 +821,13 @@ export function CorrectionCards({
         <p className="muted">No correction requests for these filters.</p>
       )}
       {items.map((c) => (
-        <CorrectionCard key={c.id} correction={c} csrf={csrf} admin={admin} />
+        <CorrectionCard
+          key={c.id}
+          correction={c}
+          csrf={csrf}
+          admin={admin}
+          segments={segments}
+        />
       ))}
     </section>
   );
@@ -826,10 +836,12 @@ function CorrectionCard({
   correction: c,
   csrf,
   admin,
+  segments,
 }: {
   correction: Correction;
   csrf: string;
   admin: boolean;
+  segments: Segment[];
 }) {
   const a = useAction(csrf),
     [decision, setDecision] = useState("APPROVED"),
@@ -844,6 +856,13 @@ function CorrectionCard({
         voided: boolean;
       }[];
     };
+  const editKeys = useRef(new Map<string, string>());
+  const editable = segments.filter(
+    (s) =>
+      s.shift_id === c.target_shift_id &&
+      s.shift_closed_at &&
+      s.root_state === "STOPPED",
+  );
   return (
     <article className="card work-panel">
       <h3>
@@ -889,12 +908,27 @@ function CorrectionCard({
           onSubmit={(e) => {
             e.preventDefault();
             const d = new FormData(e.currentTarget);
+            const changes =
+              decision === "APPROVED"
+                ? editable
+                    .filter((s) => d.has(s.id + "include"))
+                    .map((s) => {
+                      const fields = segmentFields(d, s, s.id);
+                      const fingerprint = JSON.stringify(fields);
+                      const operationKey =
+                        editKeys.current.get(fingerprint) ??
+                        crypto.randomUUID();
+                      editKeys.current.set(fingerprint, operationKey);
+                      return { ...fields, operationKey };
+                    })
+                : [];
             void a.run(
               `corrections/${c.id}/review`,
               {
                 expectedVersion: c.version,
                 decision,
                 reason: String(d.get("reason")),
+                ...(changes.length ? { segments: changes } : {}),
               },
               "Correction decision recorded; applied time needs attendance approval.",
             );
@@ -920,6 +954,28 @@ function CorrectionCard({
               rows={3}
             />
           </label>
+          {decision === "APPROVED" && editable.length > 0 && (
+            <details>
+              <summary>Include related segment corrections</summary>
+              <p>
+                Only change the segments you have reviewed. The shift and
+                segment corrections save together.
+              </p>
+              {editable.map((s) => (
+                <SegmentFields
+                  key={s.id + "-" + s.version}
+                  segment={s}
+                  prefix={s.id}
+                  optional
+                />
+              ))}
+            </details>
+          )}
+          {c.target_shift_id && !segments.length && (
+            <Link href={"/admin/attendance/" + c.target_shift_id}>
+              Open the shift and related segments
+            </Link>
+          )}
           <p className="small muted">
             Recent MFA required. If punches changed since filing, reject this
             request and file a replacement. Existing evidence and decisions
