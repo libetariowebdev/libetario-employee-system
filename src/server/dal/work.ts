@@ -79,8 +79,7 @@ export async function workSession(
     csrf: csrfForSession(token),
   };
 }
-export function workError(e: unknown): never {
-  if (e instanceof HttpError) throw e;
+export function databaseErrorCode(e: unknown) {
   const err = e as {
     code?: string;
     cause?: { originalCode?: string };
@@ -89,11 +88,16 @@ export function workError(e: unknown): never {
       driverAdapterError?: { cause?: { originalCode?: string } };
     };
   };
-  const code =
+  return (
     err.meta?.code ??
     err.meta?.driverAdapterError?.cause?.originalCode ??
     err.cause?.originalCode ??
-    err.code;
+    err.code
+  );
+}
+export function workError(e: unknown): never {
+  if (e instanceof HttpError) throw e;
+  const code = databaseErrorCode(e);
   if (code === "P0002" || code === "P2025")
     throw new HttpError(404, "Not found");
   if (code === "42501")
